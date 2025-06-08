@@ -1620,6 +1620,31 @@ elif state.page == "Data Prep":
             include_performance = st.checkbox("Include performance optimization tips", value=True)
             include_troubleshooting = st.checkbox("Include troubleshooting guidance", value=True)
             include_code_snippets = st.checkbox("Include code snippets/formulas", value=True)
+            
+            # Add table selection for complex models
+            model_dict = safe_get_dict(state.model_metadata or {})
+            tables = safe_get_list(model_dict.get("tables", []))
+            
+            if len(tables) > 10:
+                st.warning(f"⚠️ You have {len(tables)} tables. Consider selecting a subset for better performance.")
+                
+                # Option to select specific tables
+                table_selection_method = st.radio(
+                    "Table Selection",
+                    ["Use all tables", "Select specific tables"],
+                    help="For large models, selecting specific tables improves generation speed"
+                )
+                
+                selected_tables = None
+                if table_selection_method == "Select specific tables":
+                    table_names = [safe_get_dict(t).get("table_name", f"Table {i}") for i, t in enumerate(tables)]
+                    selected_tables = st.multiselect(
+                        "Select tables to include",
+                        table_names,
+                        default=table_names[:10],  # Default to first 10
+                        help="Select the most important tables for your data prep instructions"
+                    )
+            
             custom_requirements = st.text_area(
                 "Additional Requirements", 
                 placeholder="e.g., Specific business rules, data quality requirements, compliance needs...",
@@ -1627,6 +1652,10 @@ elif state.page == "Data Prep":
             )
         
         if st.button("🚀 Generate Data Preparation Instructions", type="primary"):
+            # Add progress tracking
+            progress_placeholder = st.empty()
+            progress_bar = st.progress(0)
+            
             with st.spinner("Analyzing data model and generating detailed instructions..."):
                 # Default to Advanced complexity (hidden from UI)
                 complexity = "Advanced (Complex Logic)"
@@ -1686,18 +1715,105 @@ elif state.page == "Data Prep":
                     "data_dictionary": state.data_dictionary
                 }
                 
-                # Dynamic timeout based on model complexity
+                # Update progress
+                progress_placeholder.text("📊 Analyzing model complexity...")
+                progress_bar.progress(10)
+                
+                # Optimize model metadata to reduce payload size
                 model_dict = safe_get_dict(state.model_metadata or {})
                 tables = safe_get_list(model_dict.get("tables", []))
                 total_columns = sum(len(safe_get_list(safe_get_dict(t).get("columns", []))) for t in tables)
+                
+                # Determine complexity
                 is_complex = len(tables) > 10 or total_columns > 100
+                is_very_complex = len(tables) > 20 or total_columns > 200
                 
-                timeout = 240 if is_complex else 150  # 4 minutes for complex, 2.5 for others
-                resp = call_api("generate-layout", enhanced_payload, timeout=timeout)
-                state.data_prep_instructions = resp.get("layout_instructions", "")
+                # Show warning for very complex models
+                if is_very_complex:
+                    st.warning(f"⚠️ Large data model detected ({len(tables)} tables, {total_columns} columns). Processing may take a few minutes...")
                 
-                if state.data_prep_instructions:
-                    st.success("✅ Data preparation instructions generated successfully!")
+                progress_placeholder.text("🔧 Preparing optimization settings...")
+                progress_bar.progress(20)
+                
+                # Handle table selection if available
+                if 'selected_tables' in locals() and selected_tables:
+                    # Filter tables based on selection
+                    filtered_tables = []
+                    for table in tables:
+                        table_dict = safe_get_dict(table)
+                        if table_dict and table_dict.get("table_name") in selected_tables:
+                            filtered_tables.append(table)
+                    
+                    # Update metadata with filtered tables
+                    optimized_metadata = {
+                        "tables": filtered_tables,
+                        "relationships": model_dict.get("relationships", [])
+                    }
+                    enhanced_payload["model_metadata"] = optimized_metadata
+                    st.info(f"📊 Processing {len(filtered_tables)} selected tables...")
+                    
+                # Optimize payload for large models
+                elif is_complex:
+                    # For complex models, send only essential table info
+                    simplified_tables = []
+                    for table in tables[:15]:  # Limit to first 15 tables
+                        table_dict = safe_get_dict(table)
+                        if table_dict:
+                            simplified_table = {
+                                "table_name": table_dict.get("table_name"),
+                                "columns": table_dict.get("columns", [])[:20]  # Limit columns
+                            }
+                            simplified_tables.append(simplified_table)
+                    
+                    optimized_metadata = {
+                        "tables": simplified_tables,
+                        "relationships": model_dict.get("relationships", [])[:20]  # Limit relationships
+                    }
+                    enhanced_payload["model_metadata"] = optimized_metadata
+                    
+                    st.info("💡 Optimizing large model for faster processing...")
+                
+                # Increase timeout significantly for complex models
+                if is_very_complex:
+                    timeout = 600  # 10 minutes for very complex
+                elif is_complex:
+                    timeout = 420  # 7 minutes for complex
+                else:
+                    timeout = 300  # 5 minutes for normal
+                
+                try:
+                    progress_placeholder.text("🤖 Generating AI-powered instructions...")
+                    progress_bar.progress(50)
+                    
+                    resp = call_api("generate-layout", enhanced_payload, timeout=timeout)
+                    
+                    progress_bar.progress(90)
+                    progress_placeholder.text("📝 Finalizing instructions...")
+                    
+                    state.data_prep_instructions = resp.get("layout_instructions", "")
+                    
+                    if state.data_prep_instructions:
+                        progress_bar.progress(100)
+                        progress_placeholder.empty()
+                        st.success("✅ Data preparation instructions generated successfully!")
+                    else:
+                        progress_bar.progress(100)
+                        progress_placeholder.empty()
+                        st.error("❌ Failed to generate instructions. Please try again with fewer tables.")
+                        
+                except Exception as e:
+                    progress_bar.progress(100)
+                    progress_placeholder.empty()
+                    if "timeout" in str(e).lower():
+                        st.error("⏱️ **Generation timed out.** Try these solutions:")
+                        st.markdown("""
+                        - **Reduce complexity**: Focus on 5-10 most important tables
+                        - **Split the work**: Generate instructions for groups of tables separately
+                        - **Simplify requirements**: Uncheck some advanced options
+                        - **Try again**: Sometimes the server is just busy
+                        """)
+                    else:
+                        st.error(f"❌ Error: {str(e)}")
         
         if state.data_prep_instructions:
             st.subheader("📋 Data Preparation Instructions")
