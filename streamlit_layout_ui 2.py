@@ -740,87 +740,35 @@ def call_api(endpoint, payload, timeout=120):
         return {}
 
 # ─── AI Vision Helper Functions ──────────────────────────────────────────────────
-def optimize_image_for_analysis(uploaded_file):
-    """Optimize image for faster AI analysis while maintaining quality"""
-    from PIL import Image
-    import io
-    
-    # Read the image
-    image = Image.open(uploaded_file)
-    
-    # Convert to RGB if needed (for JPEG compatibility)
-    if image.mode in ('RGBA', 'LA', 'P'):
-        image = image.convert('RGB')
-    
-    # Get original dimensions
-    width, height = image.size
-    
-    # Define max dimensions for analysis (balance between quality and speed)
-    max_dimension = 1536  # Good balance for AI vision
-    
-    # Resize if needed while maintaining aspect ratio
-    if max(width, height) > max_dimension:
-        if width > height:
-            new_width = max_dimension
-            new_height = int((height * max_dimension) / width)
-        else:
-            new_height = max_dimension
-            new_width = int((width * max_dimension) / height)
-        
-        image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
-    
-    # Save to bytes with optimized quality
-    img_byte_arr = io.BytesIO()
-    
-    # Use JPEG with good quality/size balance
-    image.save(img_byte_arr, format='JPEG', quality=85, optimize=True)
-    
-    return img_byte_arr.getvalue()
-
 def upload_and_analyze_image(uploaded_file, platform, analysis_type="ai_vision"):
-    """Handle image upload and analysis with progress tracking and optimization"""
+    """Handle image upload and analysis with progress tracking"""
     if not uploaded_file:
         return None
     
-    # Get original file info
-    original_size_mb = len(uploaded_file.getvalue()) / (1024 * 1024)
-    
-    # More restrictive size limit for faster processing
-    if original_size_mb > 5:
-        st.warning("⚠️ Large image detected. Compressing for faster analysis...")
+    file_size_mb = len(uploaded_file.getvalue()) / (1024 * 1024)
+    if file_size_mb > 10:
+        st.error("⚠️ File too large! Please use image < 10MB")
+        return None
     
     progress_bar = st.progress(0)
     status_text = st.empty()
     
     try:
-        # Optimize image for faster processing
-        status_text.text("🔄 Optimizing image for analysis...")
-        progress_bar.progress(10)
-        
-        # Compress and resize image if needed
-        optimized_file_data = optimize_image_for_analysis(uploaded_file)
-        optimized_size_mb = len(optimized_file_data) / (1024 * 1024)
-        
-        if optimized_size_mb > 8:
-            st.error("⚠️ Image still too large after optimization. Please use a smaller image or lower resolution.")
-            return None
-        
         if analysis_type == "ai_vision":
-            status_text.text("📤 Uploading optimized image...")
+            status_text.text("📤 Uploading image to AI Vision...")
             progress_bar.progress(25)
             
-            files = {"file": (uploaded_file.name, optimized_file_data, uploaded_file.type)}
+            files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
             data = {"platform": platform}
             
             status_text.text("🧠 AI Vision analyzing layout...")
             progress_bar.progress(50)
             
-            # Increased timeout and better error handling
             response = requests.post(
                 f"{FASTAPI_URL}/analyze-image",
                 files=files,
                 data=data,
-                timeout=300  # Increased to 5 minutes
+                timeout=180
             )
             
             progress_bar.progress(75)
@@ -829,28 +777,13 @@ def upload_and_analyze_image(uploaded_file, platform, analysis_type="ai_vision")
                 result = response.json()
                 progress_bar.progress(100)
                 status_text.text("✅ Analysis complete!")
-                
-                # Show optimization info if compression was significant
-                if original_size_mb > optimized_size_mb * 1.2:
-                    st.info(f"📊 Image optimized: {original_size_mb:.1f}MB → {optimized_size_mb:.1f}MB for faster processing")
-                
                 return result
             else:
                 progress_bar.progress(100)
                 status_text.text("❌ Analysis failed")
-                
-                if response.status_code == 408 or "timeout" in response.text.lower():
-                    st.error("⏱️ **Analysis timed out.** Try these solutions:")
-                    st.markdown("""
-                    - Use a **smaller image** (< 2MB recommended)
-                    - **Crop** the wireframe to focus on the main layout
-                    - **Reduce image resolution** (1024x768 or smaller)
-                    - Try the **Text Description** method instead
-                    """)
-                else:
-                    st.error(f"❌ AI Vision analysis failed (Error {response.status_code})")
-                    with st.expander("🔍 Error Details"):
-                        st.code(response.text)
+                st.error(f"❌ AI Vision analysis failed (Error {response.status_code})")
+                with st.expander("🔍 Error Details"):
+                    st.code(response.text)
                 return None
                 
         elif analysis_type == "simple_detection":
@@ -879,32 +812,12 @@ def upload_and_analyze_image(uploaded_file, platform, analysis_type="ai_vision")
     except requests.exceptions.Timeout:
         progress_bar.progress(100)
         status_text.text("⏰ Request timed out")
-        st.error("⏱️ **Analysis timed out.** Try these solutions:")
-        st.markdown("""
-        - Use a **smaller image** (< 2MB recommended)
-        - **Crop** the wireframe to focus on the main layout
-        - **Reduce image resolution** (1024x768 or smaller)
-        - Try the **Text Description** method instead
-        - Check your internet connection
-        """)
+        st.error("❌ Analysis timed out. Please try again with a smaller image.")
         return None
     except Exception as e:
         progress_bar.progress(100)
         status_text.text("❌ Error occurred")
-        
-        # Better error messages based on error type
-        error_str = str(e).lower()
-        if "timeout" in error_str:
-            st.error("⏱️ **Analysis timed out.** Please try a smaller image or use text description instead.")
-        elif "connection" in error_str or "network" in error_str:
-            st.error("🌐 **Connection error.** Please check your internet connection and try again.")
-        elif "memory" in error_str or "size" in error_str:
-            st.error("💾 **Image too large.** Please use a smaller image (< 2MB recommended).")
-        else:
-            st.error(f"❌ **Analysis error:** {str(e)}")
-            st.markdown("**Try these solutions:**")
-            st.markdown("- Use a smaller, clearer image\n- Try the Text Description method\n- Refresh the page and try again")
-        
+        st.error(f"❌ Error during analysis: {str(e)}")
         return None
 
 # ─── Page: Data Model (Simplified - removed Enterprise Schema Alternative) ───────────
@@ -1736,6 +1649,299 @@ elif state.page == "Data Prep":
             st.info("✨ **Next Steps:** Once your data preparation is complete, navigate to **Dashboard Dev** to create your visualizations!")
 
 # ─── Business-Friendly Export Functions ─────────────────────────────────────────
+def generate_kpi_summary_text(kpi_list):
+    """Generate a brief summary text of KPI definitions for sharing"""
+    if not kpi_list:
+        return "No KPI definitions available."
+    
+    summary = f"# KPI Summary ({len(kpi_list)} metrics)\n\n"
+    
+    for i, kpi in enumerate(kpi_list, 1):
+        name = kpi.get('name', f'KPI {i}')
+        description = kpi.get('description', 'No description provided')
+        
+        summary += f"**{i}. {name}**\n"
+        summary += f"   {description}\n"
+        
+        if kpi.get('formula'):
+            summary += f"   📊 Formula: `{kpi['formula']}`\n"
+        if kpi.get('target'):
+            summary += f"   🎯 Target: {kpi['target']}\n"
+        summary += "\n"
+    
+    return summary
+
+def generate_kpi_business_report(kpi_list):
+    """Generate a comprehensive business report for KPI definitions"""
+    if not kpi_list:
+        return "# KPI Report\n\nNo KPI definitions available."
+    
+    from datetime import datetime
+    
+    report = f"""# Key Performance Indicators (KPIs) Report
+Generated on: {datetime.now().strftime('%B %d, %Y')}
+
+## Executive Summary
+This document outlines {len(kpi_list)} key performance indicators that have been defined for business analysis and dashboard development.
+
+## KPI Definitions
+
+"""
+    
+    # Group KPIs by category if available
+    categorized_kpis = {}
+    uncategorized_kpis = []
+    
+    for kpi in kpi_list:
+        category = kpi.get('category', '').strip()
+        if category:
+            if category not in categorized_kpis:
+                categorized_kpis[category] = []
+            categorized_kpis[category].append(kpi)
+        else:
+            uncategorized_kpis.append(kpi)
+    
+    # Output categorized KPIs
+    for category, kpis in categorized_kpis.items():
+        report += f"### {category}\n\n"
+        for kpi in kpis:
+            report += generate_single_kpi_section(kpi)
+    
+    # Output uncategorized KPIs
+    if uncategorized_kpis:
+        if categorized_kpis:
+            report += "### General Metrics\n\n"
+        for kpi in uncategorized_kpis:
+            report += generate_single_kpi_section(kpi)
+    
+    report += """
+## Implementation Notes
+- These KPIs should be calculated consistently across all reports and dashboards
+- Ensure data sources support the required calculations
+- Review and update targets regularly based on business performance
+- Consider data refresh frequency requirements for real-time vs. batch reporting
+
+## Next Steps
+1. Validate KPI calculations with source data
+2. Set up automated data pipelines for KPI computation
+3. Create monitoring and alerting for target thresholds
+4. Schedule regular review meetings with stakeholders
+"""
+    
+    return report
+
+def generate_single_kpi_section(kpi):
+    """Helper function to generate a single KPI section"""
+    name = kpi.get('name', 'Unnamed KPI')
+    description = kpi.get('description', 'No description provided')
+    
+    section = f"#### {name}\n\n"
+    section += f"**Description:** {description}\n\n"
+    
+    if kpi.get('formula'):
+        section += f"**Calculation:** `{kpi['formula']}`\n\n"
+    
+    if kpi.get('target'):
+        section += f"**Target:** {kpi['target']}\n\n"
+    
+    if kpi.get('frequency'):
+        section += f"**Reporting Frequency:** {kpi['frequency']}\n\n"
+    
+    if kpi.get('owner'):
+        section += f"**Business Owner:** {kpi['owner']}\n\n"
+    
+    section += "---\n\n"
+    return section
+
+def generate_data_dictionary_summary_text(data_dictionary):
+    """Generate a brief summary text of data dictionary for sharing"""
+    if not data_dictionary:
+        return "No data dictionary available."
+    
+    total_tables = len(data_dictionary)
+    total_columns = sum(len(columns) for columns in data_dictionary.values())
+    
+    summary = f"# Data Dictionary Summary\n"
+    summary += f"**Tables:** {total_tables} | **Total Fields:** {total_columns}\n\n"
+    
+    for table_name, columns in data_dictionary.items():
+        summary += f"## 📋 {table_name}\n"
+        summary += f"*{len(columns)} fields*\n\n"
+        
+        # Show first few columns
+        for i, (col_name, col_info) in enumerate(list(columns.items())[:5]):
+            summary += f"**{col_name}**: {col_info.get('description', 'No description')}\n"
+            if col_info.get('type'):
+                summary += f"   Type: {col_info['type']}\n"
+        
+        if len(columns) > 5:
+            summary += f"... and {len(columns) - 5} more fields\n"
+        summary += "\n"
+    
+    return summary
+
+def generate_data_dictionary_business_report(data_dictionary):
+    """Generate a comprehensive business report for data dictionary"""
+    if not data_dictionary:
+        return "# Data Dictionary Report\n\nNo data dictionary available."
+    
+    from datetime import datetime
+    
+    total_tables = len(data_dictionary)
+    total_columns = sum(len(columns) for columns in data_dictionary.values())
+    
+    report = f"""# Data Dictionary Report
+Generated on: {datetime.now().strftime('%B %d, %Y')}
+
+## Overview
+This document provides detailed information about the data model structure, including {total_tables} tables and {total_columns} data fields.
+
+## Purpose
+The data dictionary serves as a comprehensive reference for:
+- Understanding business meaning of each data field
+- Ensuring consistent data interpretation across teams
+- Supporting data governance and quality initiatives
+- Facilitating dashboard and report development
+
+## Data Structure
+
+"""
+    
+    for table_name, columns in data_dictionary.items():
+        report += f"### 📊 {table_name}\n\n"
+        report += f"**Field Count:** {len(columns)}\n\n"
+        
+        # Create a table of fields
+        report += "| Field Name | Data Type | Description | Business Rules |\n"
+        report += "|------------|-----------|-------------|----------------|\n"
+        
+        for col_name, col_info in columns.items():
+            description = col_info.get('description', 'No description').replace('|', '\\|')
+            data_type = col_info.get('type', 'Unknown').replace('|', '\\|')
+            rules = col_info.get('rules', 'None specified').replace('|', '\\|')
+            
+            report += f"| {col_name} | {data_type} | {description} | {rules} |\n"
+        
+        report += "\n"
+        
+        # Add any table-level notes
+        if any(col_info.get('example') for col_info in columns.values()):
+            report += "**Example Values:**\n"
+            for col_name, col_info in columns.items():
+                if col_info.get('example'):
+                    report += f"- {col_name}: {col_info['example']}\n"
+            report += "\n"
+    
+    report += """
+## Data Quality Guidelines
+- All field descriptions should be kept current with business changes
+- Data types should accurately reflect storage and usage requirements
+- Business rules should be enforced at the source system level when possible
+- Regular reviews should be conducted to ensure dictionary accuracy
+
+## Contact Information
+For questions about specific data fields or to suggest updates to this dictionary, please contact your data governance team or business analysts.
+"""
+    
+    return report
+
+def generate_combined_business_summary(kpi_list, data_dictionary):
+    """Generate a combined summary of both KPIs and data dictionary"""
+    summary = "# Business Context Summary\n\n"
+    
+    if kpi_list:
+        summary += f"## 📊 Key Performance Indicators ({len(kpi_list)} metrics)\n\n"
+        for i, kpi in enumerate(kpi_list[:10], 1):  # Limit to 10 for summary
+            name = kpi.get('name', f'KPI {i}')
+            description = kpi.get('description', 'No description')
+            summary += f"**{i}. {name}:** {description}\n"
+        
+        if len(kpi_list) > 10:
+            summary += f"... and {len(kpi_list) - 10} more KPIs\n"
+        summary += "\n"
+    
+    if data_dictionary:
+        total_tables = len(data_dictionary)
+        total_columns = sum(len(columns) for columns in data_dictionary.values())
+        
+        summary += f"## 📖 Data Dictionary ({total_tables} tables, {total_columns} fields)\n\n"
+        
+        for table_name, columns in list(data_dictionary.items())[:5]:  # Limit to 5 tables
+            summary += f"**{table_name}** ({len(columns)} fields)\n"
+            # Show key fields
+            for col_name, col_info in list(columns.items())[:3]:
+                summary += f"   • {col_name}: {col_info.get('description', 'No description')}\n"
+        
+        if total_tables > 5:
+            summary += f"... and {total_tables - 5} more tables\n"
+    
+    return summary
+
+def generate_combined_business_report(kpi_list, data_dictionary, model_metadata):
+    """Generate a complete business report combining KPIs, data dictionary, and model info"""
+    from datetime import datetime
+    
+    report = f"""# Complete Business Context Report
+Generated on: {datetime.now().strftime('%B %d, %Y')}
+
+## Executive Summary
+This comprehensive report provides complete business context for dashboard development and data analysis projects.
+
+"""
+    
+    # Add model overview if available
+    if model_metadata:
+        model_dict = safe_get_dict(model_metadata)
+        tables = safe_get_list(model_dict.get("tables", []))
+        relationships = safe_get_list(model_dict.get("relationships", []))
+        
+        report += f"""## 🏗️ Data Model Overview
+- **Tables:** {len(tables)}
+- **Relationships:** {len(relationships)}
+- **Complexity:** {analyze_model_complexity(model_metadata)}
+
+"""
+    
+    # Add KPI section
+    if kpi_list:
+        report += generate_kpi_business_report(kpi_list)
+        report += "\n---\n\n"
+    
+    # Add data dictionary section
+    if data_dictionary:
+        report += generate_data_dictionary_business_report(data_dictionary)
+        report += "\n---\n\n"
+    
+    # Add implementation guidance
+    report += """## 🚀 Implementation Recommendations
+
+### Dashboard Development Priorities
+1. **Start with KPIs:** Focus on the most critical business metrics first
+2. **Data Quality:** Ensure source data meets the requirements outlined in the data dictionary
+3. **User Experience:** Design dashboards that align with business user workflows
+4. **Performance:** Optimize for the most frequently accessed metrics
+
+### Data Governance
+- Establish clear ownership for each KPI and data field
+- Create processes for updating definitions as business needs evolve
+- Implement data quality monitoring for critical metrics
+- Document any transformations or calculations applied to source data
+
+### Success Metrics
+- User adoption rates for dashboard solutions
+- Accuracy of KPI calculations vs. manual processes
+- Time savings in report generation and analysis
+- Business decision speed improvements
+
+## Next Steps
+1. Review and approve all KPI definitions with business stakeholders
+2. Validate data dictionary against current source systems
+3. Create development roadmap prioritizing high-impact metrics
+4. Establish regular review cycles for maintaining business context accuracy
+"""
+    
+    return report
+
 # ─── Page: Dashboard Dev (Tips moved above, Examples removed) ─────────────────────
 elif state.page == "Dashboard Dev":
     st.header("3️⃣ Dashboard Development")
@@ -1973,31 +2179,12 @@ Bottom: Detailed sales table by store"""
                         st.session_state['show_new_upload'] = True
                         st.rerun()
             
-            # File uploader with optimization tips
+            # File uploader
             if not state.ai_analysis_result or st.session_state.get('show_new_upload', False):
-                st.markdown("### 📤 Upload Your Wireframe")
-                
-                # Add tips for better performance
-                with st.expander("💡 Tips for Faster Analysis", expanded=False):
-                    st.markdown("""
-                    **For best performance:**
-                    - 📏 **Optimal size:** < 2MB (images are automatically optimized)
-                    - 📐 **Resolution:** 1024x768 or smaller works great
-                    - ✂️ **Crop tightly:** Focus on the main dashboard layout
-                    - 🖼️ **Clear images:** Good lighting and contrast
-                    - 📱 **Formats:** JPG/PNG recommended
-                    
-                    **What works well:**
-                    - Hand-drawn sketches ✏️
-                    - Digital wireframes 🖥️ 
-                    - Whiteboard photos 📸
-                    - Design mockups 🎨
-                    """)
-                
                 uploaded_file = st.file_uploader(
-                    "Choose an image file", 
-                    type=['png', 'jpg', 'jpeg', 'gif', 'bmp'],
-                    help="Upload wireframes, sketches, screenshots, or mockups",
+                    "Upload dashboard image", 
+                    type=['png', 'jpg', 'jpeg', 'gif'],
+                    help="📋 **Supported:** Hand-drawn sketches, wireframes, dashboard screenshots, mockups, photos of whiteboards",
                     key="ai_vision_upload"
                 )
                 
@@ -2779,13 +2966,7 @@ elif state.page == "Help":
         
         with col1:
             if st.button("🔄 Switch Persona Mode", use_container_width=True):
-                # Reset onboarding flags to allow re-selection
                 st.session_state.show_onboarding = True
-                st.session_state.onboarding_completed = False
-                # Clear any temporary selections
-                for key in ['temp_experience', 'temp_goal']:
-                    if hasattr(st.session_state, key):
-                        delattr(st.session_state, key)
                 st.rerun()
         
         with col2:

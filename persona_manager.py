@@ -51,6 +51,7 @@ GOALS = {
     "learning": {
         "name": "Learning & Building",
         "icon": "📚",
+        "button_text": "I want to learn how to build",
         "description": "Understanding BI concepts while creating dashboards",
         "adaptations": {
             "show_learning_resources": True,
@@ -59,8 +60,9 @@ GOALS = {
         }
     },
     "asset_generation": {
-        "name": "Asset Generation",
+        "name": "Asset Generation", 
         "icon": "🏭",
+        "button_text": "I want delivery assets",
         "description": "Creating reusable templates and components",
         "adaptations": {
             "emphasis_on_downloads": True,
@@ -70,7 +72,8 @@ GOALS = {
     },
     "client_delivery": {
         "name": "Client Delivery",
-        "icon": "💼",
+        "icon": "💼", 
+        "button_text": "I want to deliver solutions",
         "description": "Delivering polished dashboards to clients",
         "adaptations": {
             "professional_outputs": True,
@@ -140,71 +143,89 @@ def get_persona_prompt_modifier() -> str:
 
 def render_onboarding_modal():
     """Render the onboarding modal for new users"""
-    with st.container():
-        st.markdown("""
-        <style>
-        .onboarding-container {
-            background-color: white;
-            padding: 2rem;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            margin: 2rem auto;
-            max-width: 600px;
-        }
-        .onboarding-header {
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-        .persona-option {
-            background-color: #f8f9fa;
-            padding: 1rem;
-            border-radius: 8px;
-            margin: 0.5rem 0;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            border: 2px solid transparent;
-        }
-        .persona-option:hover {
-            background-color: #e9ecef;
-            border-color: #0C62FB;
-        }
-        .persona-selected {
-            background-color: #e7f1ff;
-            border-color: #0C62FB;
-        }
-        </style>
-        """, unsafe_allow_html=True)
+    
+    # Center the modal on the page
+    st.markdown("""
+    <style>
+    .onboarding-container {
+        background-color: white;
+        padding: 2.5rem;
+        border-radius: 16px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        margin: 2rem auto;
+        max-width: 700px;
+        border: 1px solid #e0e0e0;
+    }
+    .onboarding-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .logo-container {
+        text-align: center;
+        margin-bottom: 1.5rem;
+    }
+    .main[data-testid="stAppViewContainer"] {
+        padding-top: 2rem;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Create a centered container
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col2:
+        # Logo
+        import base64
+        import os
         
-        st.markdown('<div class="onboarding-container">', unsafe_allow_html=True)
+        logo_path = "logo.png"
+        if os.path.exists(logo_path):
+            with open(logo_path, "rb") as f:
+                logo_data = base64.b64encode(f.read()).decode()
+            
+            st.markdown(f"""
+            <div class="logo-container">
+                <img src="data:image/png;base64,{logo_data}" 
+                     style="height: 80px; width: auto; margin-bottom: 1rem;" 
+                     alt="BI Assistant Logo">
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            # Fallback if logo.png not found
+            st.markdown("""
+            <div class="logo-container">
+                <h2 style="color: #0C62FB; margin-bottom: 1rem;">📊 BI Assistant</h2>
+            </div>
+            """, unsafe_allow_html=True)
         
-        # Header
+        # Welcome Header
         st.markdown("""
         <div class="onboarding-header">
-            <h2>👋 Welcome to BI Assistant!</h2>
-            <p>Let's personalize your experience in just 2 quick questions</p>
+            <h1 style="color: #333; margin-bottom: 0.5rem;">Welcome to the AI BI Workflow Accelerator</h1>
+            <p style="color: #666; font-size: 1.1rem; margin-bottom: 1rem;">Let's personalize your experience in just 2 quick questions</p>
         </div>
         """, unsafe_allow_html=True)
         
         # Question 1: Experience Level
         st.markdown("### 1️⃣ What's your BI dashboard experience level?")
         
-        col1, col2, col3 = st.columns(3)
+        exp_col1, exp_col2, exp_col3 = st.columns(3)
         
         experience_level = None
         
-        with col1:
+        with exp_col1:
             if st.button(f"{PERSONAS['beginner']['icon']} Beginner", 
                         use_container_width=True,
                         help="New to BI dashboards, learning the basics"):
                 experience_level = "beginner"
         
-        with col2:
+        with exp_col2:
             if st.button(f"{PERSONAS['intermediate']['icon']} Intermediate", 
                         use_container_width=True,
                         help="Familiar with BI concepts, building experience"):
                 experience_level = "intermediate"
         
-        with col3:
+        with exp_col3:
             if st.button(f"{PERSONAS['expert']['icon']} Expert", 
                         use_container_width=True,
                         help="BI professional, focused on efficiency"):
@@ -216,26 +237,26 @@ def render_onboarding_modal():
         # Question 2: Primary Goal
         st.markdown("### 2️⃣ What's your primary goal?")
         
-        col1, col2, col3 = st.columns(3)
+        goal_col1, goal_col2, goal_col3 = st.columns(3)
         
         primary_goal = None
         
-        with col1:
-            if st.button(f"{GOALS['learning']['icon']} Learning", 
+        with goal_col1:
+            if st.button(f"{GOALS['learning']['icon']} {GOALS['learning']['button_text']}", 
                         use_container_width=True,
-                        help="Understanding BI while building"):
+                        help=GOALS['learning']['description']):
                 primary_goal = "learning"
         
-        with col2:
-            if st.button(f"{GOALS['asset_generation']['icon']} Assets", 
+        with goal_col2:
+            if st.button(f"{GOALS['asset_generation']['icon']} {GOALS['asset_generation']['button_text']}", 
                         use_container_width=True,
-                        help="Creating reusable templates"):
+                        help=GOALS['asset_generation']['description']):
                 primary_goal = "asset_generation"
         
-        with col3:
-            if st.button(f"{GOALS['client_delivery']['icon']} Delivery", 
+        with goal_col3:
+            if st.button(f"{GOALS['client_delivery']['icon']} {GOALS['client_delivery']['button_text']}", 
                         use_container_width=True,
-                        help="Delivering to clients"):
+                        help=GOALS['client_delivery']['description']):
                 primary_goal = "client_delivery"
         
         if primary_goal:
@@ -257,9 +278,9 @@ def render_onboarding_modal():
         # Action buttons
         st.markdown("---")
         
-        col1, col2 = st.columns(2)
+        action_col1, action_col2 = st.columns(2)
         
-        with col1:
+        with action_col1:
             if st.button("Skip for now", use_container_width=True, type="secondary"):
                 st.session_state.user_persona = {
                     "experience_level": "intermediate",
@@ -274,7 +295,7 @@ def render_onboarding_modal():
                         delattr(st.session_state, key)
                 st.rerun()
         
-        with col2:
+        with action_col2:
             # Enable Continue only if both selections made
             can_continue = (hasattr(st.session_state, 'temp_experience') and 
                           hasattr(st.session_state, 'temp_goal'))
@@ -295,8 +316,6 @@ def render_onboarding_modal():
                     delattr(st.session_state, 'temp_experience')
                     delattr(st.session_state, 'temp_goal')
                     st.rerun()
-        
-        st.markdown('</div>', unsafe_allow_html=True)
 
 
 def render_persona_indicator():
@@ -325,7 +344,13 @@ def render_persona_indicator():
     
     # Switch mode button
     if st.sidebar.button("🔄 Switch Mode", use_container_width=True, key="switch_persona"):
+        # Reset onboarding flags to allow re-selection
         st.session_state.show_onboarding = True
+        st.session_state.onboarding_completed = False
+        # Clear any temporary selections
+        for key in ['temp_experience', 'temp_goal']:
+            if hasattr(st.session_state, key):
+                delattr(st.session_state, key)
         st.rerun()
 
 
@@ -360,8 +385,51 @@ def render_progress_indicator(current_step: int, total_steps: int, step_name: st
         return
     
     progress = current_step / total_steps
-    st.progress(progress)
-    st.caption(f"Step {current_step} of {total_steps}: {step_name}")
+    progress_percent = int(progress * 100)
+    
+    # Custom progress bar with better contrast
+    st.markdown(f"""
+    <style>
+    .custom-progress-container {{
+        background-color: #e0e0e0;
+        border-radius: 10px;
+        height: 20px;
+        margin: 10px 0;
+        overflow: hidden;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+    }}
+    .custom-progress-bar {{
+        background: linear-gradient(90deg, #0C62FB 0%, #0A52D9 100%);
+        height: 100%;
+        width: {progress_percent}%;
+        border-radius: 10px;
+        transition: width 0.3s ease;
+        position: relative;
+    }}
+    .custom-progress-text {{
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: white;
+        font-weight: bold;
+        font-size: 12px;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+    }}
+    .progress-label {{
+        color: #666;
+        font-size: 14px;
+        margin-bottom: 5px;
+        font-weight: 500;
+    }}
+    </style>
+    <div class="progress-label">Step {current_step} of {total_steps}: {step_name}</div>
+    <div class="custom-progress-container">
+        <div class="custom-progress-bar">
+            <div class="custom-progress-text">{progress_percent}%</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 
 def render_estimated_time(task: str, minutes: int):
