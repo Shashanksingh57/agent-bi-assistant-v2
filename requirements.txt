@@ -8,8 +8,7 @@ python-dotenv>=1.0.0
 
 # Image processing (compatible versions)
 pillow>=10.0.0
-# Note: OpenCV removed - not needed for core functionality
-# opencv-python-headless can be installed separately if needed
+opencv-python-headless>=4.8.0
 
 # Utilities and data processing
 numpy>=1.25.0
