@@ -12,6 +12,12 @@ from file_parsers import (
     parse_data_dictionary_excel, parse_data_dictionary_csv,
     validate_kpi_list, validate_data_dictionary
 )
+from persona_manager import (
+    initialize_persona_state, get_current_persona, should_show_feature,
+    get_persona_prompt_modifier, render_onboarding_modal, render_persona_indicator,
+    render_adaptive_help, render_progress_indicator, render_estimated_time,
+    get_adaptive_button_text, render_example_content
+)
 
 
 
@@ -326,6 +332,14 @@ for key, default in {
 }.items():
     if key not in state:
         state[key] = default
+
+# Initialize persona state
+initialize_persona_state()
+
+# ─── Show Onboarding if Needed ──────────────────────────────────────────────────
+if st.session_state.show_onboarding and not st.session_state.onboarding_completed:
+    render_onboarding_modal()
+    st.stop()
 
 # ─── Helper Functions ────────────────────────────────────────────────────────────
 def safe_get_dict(obj, default=None):
@@ -652,7 +666,8 @@ pages = [
     ("🏗️ Data Model", "Data Model"),
     ("🔧 Data Prep", "Data Prep"), 
     ("📊 Dashboard Dev", "Dashboard Dev"),
-    ("📋 Sprint Board", "Sprint Board")
+    ("📋 Sprint Board", "Sprint Board"),
+    ("❓ Help", "Help")
 ]
 
 for icon_title, page_key in pages:
@@ -673,6 +688,9 @@ st.sidebar.markdown(f"""
     <strong style='color: black;'>📍 Current: {state.page}</strong>
 </div>
 """, unsafe_allow_html=True)
+
+# Persona indicator
+render_persona_indicator()
 
 # Reset button with different styling
 if state.page != "Data Model":
@@ -804,6 +822,25 @@ if state.page == "Data Model":
         "**Overview:** Upload an existing JSON schema or build one from SQL DDLs.  \n"
         "When ready, navigate to **Data Prep** via the sidebar."
     )
+    
+    # Show progress for beginners
+    render_progress_indicator(1, 4, "Define Data Model")
+    
+    # Show estimated time for task
+    render_estimated_time("data model setup", 10)
+    
+    # Adaptive help for beginners
+    render_adaptive_help(
+        "What is a Data Model?",
+        """A data model defines the structure of your data - the tables, columns, and relationships 
+        between them. Think of it as the blueprint for your dashboard's data foundation.
+        
+        **Example:** A sales data model might have:
+        - Customer table (customer info)
+        - Product table (product details)
+        - Sales table (transactions)
+        - Relationships connecting them"""
+    )
 
     mode = st.radio("Mode:", ["Upload JSON", "Build from SQL"], index=0)
     
@@ -818,7 +855,25 @@ if state.page == "Data Model":
     
     else:  # Build from SQL
         st.markdown("### 📁 Upload DDL Files")
-        st.info("💡 Upload multiple table DDL files at once, plus one relationships file.")
+        
+        # Show different info based on persona
+        persona = get_current_persona()
+        if persona and persona.get("experience_level") == "beginner":
+            st.info("💡 **What are DDL files?** DDL (Data Definition Language) files contain SQL CREATE TABLE statements that define your database structure. Upload one file per table, plus a relationships file.")
+            
+            render_example_content(
+                "Sample DDL File",
+                """```sql
+-- customers.sql
+CREATE TABLE customers (
+    customer_id INT PRIMARY KEY,
+    customer_name VARCHAR(100),
+    country VARCHAR(50)
+);
+```"""
+            )
+        else:
+            st.info("💡 Upload multiple table DDL files at once, plus one relationships file.")
         
         # Multi-file uploader for DDL files
         ddl_files = st.file_uploader(
@@ -913,7 +968,8 @@ if state.page == "Data Model":
                 st.success(f"🟢 **Manageable Schema** ({total_size:,} characters) - Should process quickly!")
             
             # Generate button with enhanced progress tracking
-            if rel_file and st.button("🚀 Generate Model JSON", type="primary", use_container_width=True):
+            button_text = get_adaptive_button_text("Generate Model JSON", "generate")
+            if rel_file and st.button(f"🚀 {button_text}", type="primary", use_container_width=True):
                 
                 progress_bar = st.progress(0)
                 status_text = st.empty()
@@ -1383,6 +1439,24 @@ elif state.page == "Data Prep":
         "After data is clean and joined, move to **Dashboard Dev**."
     )
     
+    # Show progress for beginners
+    render_progress_indicator(2, 4, "Data Preparation")
+    
+    # Show estimated time
+    render_estimated_time("data preparation", 15)
+    
+    # Adaptive help
+    render_adaptive_help(
+        "Why Data Prep?",
+        """Data preparation is crucial for dashboard success. This step helps you:
+        - Clean and validate your data
+        - Create proper joins between tables
+        - Calculate derived fields and KPIs
+        - Optimize for your chosen BI platform
+        
+        Good data prep = faster, more accurate dashboards!"""
+    )
+    
     if not state.model_metadata:
         st.info("Define your Data Model first under **Data Model**.")
     else:
@@ -1503,6 +1577,11 @@ elif state.page == "Data Prep":
                 - Text manipulations
                 - Error handling
                 """
+                
+                # Add persona modifier to prompt
+                persona_modifier = get_persona_prompt_modifier()
+                if persona_modifier:
+                    enhanced_requirements += f"\n\n{persona_modifier}"
                 
                 enhanced_payload = {
                     "sketch_description": "",
@@ -1869,6 +1948,28 @@ elif state.page == "Dashboard Dev":
         "After building visuals, move to **Sprint Board**."
     )
     
+    # Show progress
+    render_progress_indicator(3, 4, "Dashboard Development")
+    
+    # Show estimated time
+    render_estimated_time("dashboard design", 30)
+    
+    # Adaptive help
+    render_adaptive_help(
+        "Dashboard Design Tips",
+        """**Best Practices:**
+        - Start with your most important KPIs at the top
+        - Use consistent colors and fonts
+        - Group related information together
+        - Leave white space for visual breathing room
+        - Test with actual users for feedback
+        
+        **Common Layouts:**
+        - Executive Summary (KPI cards on top)
+        - Analytical Deep Dive (filters + detailed charts)
+        - Operational Monitor (real-time metrics + alerts)"""
+    )
+    
     if not state.model_metadata:
         st.info("Define your Data Model first under **Data Model**.")
     else:
@@ -2032,9 +2133,15 @@ Bottom: Detailed sales table by store"""
                 
                 col1, col2 = st.columns([3, 1])
                 with col1:
-                    if st.button("✨ Generate Dashboard Instructions", type="primary", key="ai_generate_from_previous"):
+                    button_text = get_adaptive_button_text("Generate Dashboard Instructions", "generate")
+                    if st.button(f"✨ {button_text}", type="primary", key="ai_generate_from_previous"):
                         with st.spinner("🔨 Creating detailed dashboard instructions..."):
                             enhanced_prompt = prompt
+                            # Add persona modifier
+                            persona_modifier = get_persona_prompt_modifier()
+                            if persona_modifier:
+                                enhanced_prompt = f"{enhanced_prompt}\n\n{persona_modifier}" if enhanced_prompt else persona_modifier
+                            
                             if prompt:
                                 enhanced_prompt += f"\n\nAI Vision Analysis:\n{state.ai_analysis_result}"
                             else:
@@ -2325,6 +2432,26 @@ else:
     st.header("4️⃣ Sprint Board")
     st.markdown("**Overview:** Convert your prep & dev steps into sprint stories with estimations and timeline planning.")
     
+    # Show progress
+    render_progress_indicator(4, 4, "Sprint Planning")
+    
+    # Show estimated time
+    render_estimated_time("sprint planning", 20)
+    
+    # Adaptive help
+    render_adaptive_help(
+        "What is Sprint Planning?",
+        """Sprint planning breaks your project into manageable tasks with time estimates.
+        
+        **Key Concepts:**
+        - **User Stories**: Small, focused tasks (e.g., "Create sales KPI card")
+        - **Story Points**: Effort estimates (1 point ≈ simple task, 8 points ≈ complex)
+        - **Velocity**: How many points your team completes per sprint
+        - **Sprint**: Fixed time period (usually 1-2 weeks) to complete tasks
+        
+        This helps you deliver working dashboards incrementally!"""
+    )
+    
     if not state.model_metadata:
         st.info("Define your Data Model first under **Data Model**.")
     else:
@@ -2374,6 +2501,12 @@ else:
                         st.warning("⚠️ No instructions available. Please generate Data Prep or Dashboard Dev instructions first.")
                     else:
                         enhanced_instructions = "\n\n".join(parts)
+                        
+                        # Add persona modifier
+                        persona_modifier = get_persona_prompt_modifier()
+                        if persona_modifier:
+                            enhanced_instructions += f"\n\n{persona_modifier}"
+                        
                         enhanced_instructions += f"""
                         
 ## Team Context
@@ -2563,3 +2696,279 @@ else:
                 if st.button("📊 Go to Dashboard Dev", use_container_width=True):
                     state.page = "Dashboard Dev"
                     st.rerun()
+
+# ─── Page: Help ─────────────────────────────────────────────────────────────────
+elif state.page == "Help":
+    st.header("❓ Help & User Guide")
+    st.markdown("Learn how to use the BI Assistant effectively with personalized modes")
+    
+    # Help navigation
+    help_tab1, help_tab2, help_tab3, help_tab4 = st.tabs(["📚 Overview", "👤 Persona Modes", "🛠️ Features", "💡 Tips"])
+    
+    with help_tab1:
+        st.subheader("Welcome to BI Assistant!")
+        
+        st.markdown("""
+        ### 🎯 What is BI Assistant?
+        
+        BI Assistant is an AI-powered tool that helps you transform wireframe sketches and ideas into 
+        fully functional BI dashboards. It guides you through the entire process from data modeling 
+        to sprint planning.
+        
+        ### 🔄 The Workflow
+        
+        1. **🏗️ Data Model**: Define your data structure (tables, relationships)
+        2. **🔧 Data Prep**: Get AI-generated data preparation instructions
+        3. **📊 Dashboard Dev**: Convert wireframes into dashboard layouts
+        4. **📋 Sprint Board**: Plan your development with sprint stories
+        
+        ### 🚀 Getting Started
+        
+        1. Start with the **Data Model** page
+        2. Upload your SQL DDL files or create a JSON schema
+        3. Progress through each step sequentially
+        4. Download your outputs at any stage
+        """)
+        
+        persona = get_current_persona()
+        if persona and not persona.get("skipped", False):
+            level = persona.get("experience_level", "intermediate")
+            st.info(f"You're currently in **{level.title()} Mode**. The interface is adapted to your experience level!")
+    
+    with help_tab2:
+        st.subheader("👤 Understanding Persona Modes")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.markdown("""
+            ### 🌱 Beginner Mode
+            
+            **Perfect for:**
+            - First-time BI dashboard creators
+            - Learning the fundamentals
+            - Step-by-step guidance needed
+            
+            **What you'll see:**
+            - 💡 Helpful tips and explanations
+            - 📝 Examples and templates
+            - ⏱️ Time estimates for tasks
+            - 📊 Progress indicators
+            - ❓ "What is this?" help boxes
+            
+            **Benefits:**
+            - Learn BI concepts as you build
+            - Avoid common mistakes
+            - Build confidence gradually
+            """)
+        
+        with col2:
+            st.markdown("""
+            ### 📊 Intermediate Mode
+            
+            **Perfect for:**
+            - Some BI experience
+            - Building proficiency
+            - Balanced guidance
+            
+            **What you'll see:**
+            - ℹ️ Key tips when helpful
+            - ⏱️ Time estimates
+            - 📊 Progress tracking
+            - Standard options
+            
+            **Benefits:**
+            - Efficient workflow
+            - Helpful reminders
+            - Room to explore
+            """)
+        
+        with col3:
+            st.markdown("""
+            ### 🚀 Expert Mode
+            
+            **Perfect for:**
+            - BI professionals
+            - Maximum efficiency
+            - Minimal interruptions
+            
+            **What you'll see:**
+            - Clean, minimal interface
+            - Advanced options visible
+            - Direct access to features
+            - No basic explanations
+            
+            **Benefits:**
+            - Fast workflow
+            - Advanced capabilities
+            - Professional outputs
+            """)
+        
+        st.markdown("---")
+        
+        st.subheader("🎯 Primary Goals")
+        
+        goal_col1, goal_col2, goal_col3 = st.columns(3)
+        
+        with goal_col1:
+            st.markdown("""
+            ### 📚 Learning & Building
+            - Educational focus
+            - Concept explanations
+            - Best practices guidance
+            """)
+        
+        with goal_col2:
+            st.markdown("""
+            ### 🏭 Asset Generation
+            - Template creation
+            - Bulk processing
+            - Reusable components
+            """)
+        
+        with goal_col3:
+            st.markdown("""
+            ### 💼 Client Delivery
+            - Professional outputs
+            - Export emphasis
+            - Polished results
+            """)
+    
+    with help_tab3:
+        st.subheader("🛠️ Feature Guide")
+        
+        with st.expander("🏗️ Data Model", expanded=True):
+            st.markdown("""
+            **Purpose:** Define your data structure
+            
+            **Options:**
+            - **Upload SQL DDL**: Best for existing databases
+            - **Manual JSON**: For custom schemas
+            - **Templates**: Quick start options
+            
+            **Tips:**
+            - Start with 5-10 key tables
+            - Always include relationships file
+            - Review generated JSON before proceeding
+            """)
+        
+        with st.expander("🔧 Data Prep"):
+            st.markdown("""
+            **Purpose:** Generate data preparation instructions
+            
+            **Features:**
+            - Platform-specific guidance (Power BI, Tableau, etc.)
+            - KPI list integration
+            - Data dictionary support
+            
+            **Outputs:**
+            - Step-by-step prep instructions
+            - Platform best practices
+            - Data quality checks
+            """)
+        
+        with st.expander("📊 Dashboard Dev"):
+            st.markdown("""
+            **Purpose:** Convert wireframes to layouts
+            
+            **Input Methods:**
+            - **Text Description**: Describe your dashboard
+            - **Image Upload**: Upload wireframe sketches
+            - **AI Vision**: Automatic layout detection
+            
+            **Outputs:**
+            - Component specifications
+            - Layout instructions
+            - Styling guidelines
+            """)
+        
+        with st.expander("📋 Sprint Board"):
+            st.markdown("""
+            **Purpose:** Agile project planning
+            
+            **Features:**
+            - Story point estimation
+            - Sprint capacity planning
+            - Task prioritization
+            
+            **Outputs:**
+            - User stories (JSON/CSV/MD)
+            - Sprint timeline
+            - Capacity analysis
+            """)
+    
+    with help_tab4:
+        st.subheader("💡 Pro Tips")
+        
+        persona = get_current_persona()
+        level = persona.get("experience_level", "intermediate") if persona else "intermediate"
+        
+        if level == "beginner":
+            st.markdown("""
+            ### 🌱 Tips for Beginners
+            
+            1. **Start Simple**: Begin with 3-5 tables in your data model
+            2. **Use Templates**: Look for example files in the test_cases folder
+            3. **Read the Hints**: Hover over ℹ️ icons for helpful information
+            4. **Take Your Time**: Follow the estimated times for each task
+            5. **Ask Questions**: Use the help boxes to understand concepts
+            
+            ### 📈 Learning Path
+            1. Complete a simple dashboard end-to-end
+            2. Try different visualization types
+            3. Experiment with different platforms
+            4. Graduate to Intermediate mode when ready!
+            """)
+        
+        elif level == "intermediate":
+            st.markdown("""
+            ### 📊 Tips for Intermediate Users
+            
+            1. **Batch Processing**: Upload multiple DDL files at once
+            2. **Custom KPIs**: Define business-specific metrics
+            3. **Platform Features**: Explore platform-specific optimizations
+            4. **Sprint Planning**: Use realistic velocity estimates
+            
+            ### 🚀 Efficiency Boosters
+            - Use keyboard shortcuts
+            - Save templates for reuse
+            - Leverage AI suggestions
+            - Try Expert mode for faster workflows
+            """)
+        
+        else:  # expert
+            st.markdown("""
+            ### 🚀 Expert Power User Tips
+            
+            1. **API Integration**: Use the FastAPI endpoints directly
+            2. **Bulk Operations**: Process multiple projects in parallel
+            3. **Custom Prompts**: Modify AI prompts for specific needs
+            4. **Advanced Schemas**: Handle complex multi-schema models
+            
+            ### ⚡ Maximum Efficiency
+            - Skip manual reviews with trusted schemas
+            - Use JSON imports/exports for automation
+            - Create project templates
+            - Integrate with CI/CD pipelines
+            """)
+        
+        st.markdown("---")
+        
+        # Quick actions
+        st.subheader("🎬 Quick Actions")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            if st.button("🔄 Switch Persona Mode", use_container_width=True):
+                st.session_state.show_onboarding = True
+                st.rerun()
+        
+        with col2:
+            if st.button("📥 Download Sample Files", use_container_width=True):
+                st.info("Check the test_cases folder for sample files!")
+        
+        with col3:
+            if st.button("🏠 Back to Start", use_container_width=True):
+                state.page = "Data Model"
+                st.rerun()
