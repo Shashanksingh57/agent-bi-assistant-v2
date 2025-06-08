@@ -719,7 +719,7 @@ st.sidebar.markdown(
     unsafe_allow_html=True
 )
 # ─── FastAPI POST helper ─────────────────────────────────────────────────────────
-def call_api(endpoint, payload, timeout=120, max_retries=2):
+def call_api(endpoint, payload, timeout=900, max_retries=2):
     """Helper function to call FastAPI endpoints with retry logic and better timeout handling"""
     import time
     
@@ -744,9 +744,10 @@ def call_api(endpoint, payload, timeout=120, max_retries=2):
                 return {}
             return r.json()
             
-        except requests.exceptions.Timeout:
+        except requests.exceptions.Timeout as e:
             if attempt == max_retries:  # Last attempt
-                st.error("❌ Request timed out after multiple attempts. The AI is taking longer than expected. Please try chunked processing for large models.")
+                st.error(f"❌ Request timed out after {timeout} seconds. The AI is taking longer than expected. Please try chunked processing for large models.")
+                st.info(f"🔍 **Debug info**: Timeout was set to {timeout} seconds. Error: {str(e)}")
             continue
             
         except requests.exceptions.RequestException as e:
@@ -913,7 +914,7 @@ def upload_and_analyze_image(uploaded_file, platform, analysis_type="ai_vision")
             response = requests.post(
                 f"{FASTAPI_URL}/detect-layout",
                 files=files,
-                timeout=60
+                timeout=300
             )
             
             progress_bar.progress(100)
@@ -1117,9 +1118,9 @@ CREATE TABLE customers (
                 progress_bar = st.progress(0)
                 status_text = st.empty()
                 
-                base_timeout = 120
+                base_timeout = 300  # Start with 5 minutes
                 size_factor = max(1, total_size // 10000)
-                dynamic_timeout = min(300, base_timeout + (size_factor * 60))
+                dynamic_timeout = min(900, base_timeout + (size_factor * 60))  # Max 15 minutes
                 
                 try:
                     status_text.text(f"🔄 Processing {len(ddl_files)} DDL files... (Est. {est_time})")
@@ -1282,7 +1283,7 @@ The AI will extract structured KPI definitions from your notes.""",
                             # Call the API to parse unstructured KPIs
                             response = call_api("parse-unstructured-kpis", {
                                 "notes_text": st.session_state.kpi_text_input
-                            }, timeout=120)
+                            }, timeout=600)
                             
                             if response and "kpi_list" in response:
                                 kpi_list = response["kpi_list"]
@@ -1429,7 +1430,7 @@ The AI will structure this into a proper data dictionary format.""",
                             response = call_api("parse-unstructured-dictionary", {
                                 "notes_text": st.session_state.dict_text_input,
                                 "table_context": table_context
-                            }, timeout=120)
+                            }, timeout=600)
                             
                             if response and "data_dictionary" in response:
                                 data_dict = response["data_dictionary"]

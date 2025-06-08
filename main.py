@@ -62,7 +62,7 @@ def safe_get_list(obj, default=None):
         return obj
     return default or []
 
-def create_optimized_openai_call(messages, max_tokens=2000, timeout=90):
+def create_optimized_openai_call(messages, max_tokens=2000, timeout=600):
     """Create OpenAI API call with timeout and error handling"""
     try:
         response = client.chat.completions.create(
@@ -77,7 +77,7 @@ def create_optimized_openai_call(messages, max_tokens=2000, timeout=90):
         logger.error(f"OpenAI API error: {str(e)}")
         raise HTTPException(500, f"AI service error: {str(e)}")
 
-def create_vision_call_with_retry(messages, max_tokens=2000, timeout=300, max_retries=2):
+def create_vision_call_with_retry(messages, max_tokens=2000, timeout=900, max_retries=2):
     """Create GPT-4o Vision API call with retry logic for better reliability"""
     import time
     
@@ -712,7 +712,7 @@ Be specific about positioning (top-left, center, bottom-right, etc.) and visual 
         layout_description = create_vision_call_with_retry(
             messages=vision_messages,
             max_tokens=2000,  # Increased for more detailed analysis
-            timeout=900,      # 15 minutes timeout (was working before)
+            timeout=300000,      # 15 minutes timeout (was working before)
             max_retries=2     # 3 total attempts
         )
         
@@ -930,7 +930,7 @@ Extract all performance indicators, metrics, and KPIs mentioned. Include formula
                 {"role": "user", "content": user_msg}
             ],
             max_tokens=2000,
-            timeout=90
+            timeout=30000
         )
         
         # Clean and parse response
@@ -1023,7 +1023,7 @@ Extract all data fields, tables, and business rules mentioned. Include data type
                 {"role": "user", "content": user_msg}
             ],
             max_tokens=2000,
-            timeout=90
+            timeout=30000
         )
         
         # Clean and parse response
@@ -1327,7 +1327,7 @@ Format: {{"tables": [{{"name": "table", "columns": [{{"name": "col", "type": "st
             {"role": "user", "content": f"Tables:\n{combined_ddl}"}
         ],
         max_tokens=2000,
-        timeout=60
+        timeout=3000
     )
     
     # Clean and parse
@@ -1351,7 +1351,7 @@ async def process_relationships_only(relationships_sql):
             {"role": "user", "content": relationships_sql}
         ],
         max_tokens=800,
-        timeout=30
+        timeout=300
     )
     
     content = content.strip()
@@ -1438,7 +1438,7 @@ async def generate_layout(req: GenerateRequest):
                         {"role": "user", "content": enhanced_prompt}
                     ],
                     max_tokens=2500,  # Reduced to speed up response
-                    timeout=90
+                    timeout=30000
                 )
             except Exception as openai_error:
                 logger.error(f"OpenAI timeout or error: {str(openai_error)}")
@@ -1559,13 +1559,13 @@ Please try again or contact support if the issue persists.
         
         # Dynamic timeout and token allocation based on complexity
         if is_complex:
-            timeout_seconds = 180  # 3 minutes for complex models
+            timeout_seconds = 900  # 15 minutes for complex models
             max_tokens = 2500
         elif is_simple:
-            timeout_seconds = 60   # 1 minute for simple models
+            timeout_seconds = 600   # 10 minutes for simple models
             max_tokens = 1500
         else:
-            timeout_seconds = 120  # 2 minutes for medium models
+            timeout_seconds = 720  # 12 minutes for medium models
             max_tokens = 1800
         
         logger.info(f"Using timeout: {timeout_seconds}s, max_tokens: {max_tokens}")
@@ -1639,7 +1639,7 @@ async def generate_sprint(req: SprintRequest):
                     {"role":"user","content":user_msg}
                 ],
                 max_tokens=1200,
-                timeout=60
+                timeout=3000
             )
         except Exception as e:
             raise HTTPException(500, f"Sprint generation failed: {str(e)}")
@@ -1675,7 +1675,7 @@ async def test_simple():
             model="gpt-4",
             messages=[{"role": "user", "content": "Say hello in 5 words"}],
             max_tokens=50,
-            timeout=30
+            timeout=300
         )
         return {"status": "success", "response": response.choices[0].message.content}
     except Exception as e:
