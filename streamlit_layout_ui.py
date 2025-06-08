@@ -24,8 +24,25 @@ from report_generators import (
     generate_combined_business_summary, generate_combined_business_report
 )
 
-
-
+# ─── Backend Health Check Function ──────────────────────────────────────────
+def check_backend_health():
+    """Test if backend is responsive before making complex requests"""
+    try:
+        # Get URL from environment 
+        FASTAPI_URL = os.getenv("FASTAPI_URL", "http://127.0.0.1:8000/api/v1")
+        base_url = FASTAPI_URL.replace("/api/v1", "")  # Remove /api/v1 for health endpoint
+        
+        response = requests.get(f"{base_url}/health", timeout=10)
+        if response.status_code == 200:
+            return True, "Backend is healthy"
+        else:
+            return False, f"Backend returned status {response.status_code}"
+    except requests.exceptions.Timeout:
+        return False, "Backend health check timed out (10s) - server may be hung"
+    except requests.exceptions.ConnectionError:
+        return False, "Cannot connect to backend - server may be down"
+    except Exception as e:
+        return False, f"Health check error: {str(e)}"
 
 # ─── Load Custom CSS ──────────────────────────────────────────────────────────────
 def load_custom_css():
@@ -801,21 +818,6 @@ def call_api(endpoint, payload, timeout=900, max_retries=2):
             continue
     
     return {}
-
-def check_backend_health():
-    """Test if backend is responsive before making complex requests"""
-    try:
-        response = requests.get(f"{FASTAPI_URL}/health", timeout=10)
-        if response.status_code == 200:
-            return True, "Backend is healthy"
-        else:
-            return False, f"Backend returned status {response.status_code}"
-    except requests.exceptions.Timeout:
-        return False, "Backend health check timed out (10s) - server may be hung"
-    except requests.exceptions.ConnectionError:
-        return False, "Cannot connect to backend - server may be down"
-    except Exception as e:
-        return False, f"Health check error: {str(e)}"
 
 # ─── AI Vision Helper Functions ──────────────────────────────────────────────────
 def optimize_image_for_analysis(uploaded_file):
