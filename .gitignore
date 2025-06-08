@@ -10,3 +10,6 @@ venv/
 
 # MacOS system files
 .DS_Store
+
+# Claude Code settings (local development)
+.claude/
