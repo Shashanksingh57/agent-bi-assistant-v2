@@ -8,6 +8,8 @@ import base64
 import numpy as np
 import cv2
 import logging
+import time
+import psutil
 
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -31,6 +33,30 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Agentic BI Assistant")
+
+# Add health check endpoint
+@app.get("/health")
+async def health_check():
+    """Simple health check to verify server is responsive"""
+    return {"status": "healthy", "timestamp": time.time()}
+
+@app.get("/api/v1/health")
+async def api_health_check():
+    """API health check to verify server is responsive"""
+    # Get memory usage
+    memory = psutil.virtual_memory()
+    process = psutil.Process()
+    
+    return {
+        "status": "healthy", 
+        "timestamp": time.time(), 
+        "message": "Backend API is running",
+        "memory": {
+            "available_gb": round(memory.available / (1024**3), 2),
+            "used_percent": memory.percent,
+            "process_memory_mb": round(process.memory_info().rss / (1024**2), 2)
+        }
+    }
 
 # ─── Helper Functions ────────────────────────────────────────────────────────────
 def safe_get_dict(obj, default=None):
@@ -1369,8 +1395,13 @@ async def generate_layout(req: GenerateRequest):
     start_time = time.time()
     
     try:
+        # Monitor memory at start
+        memory = psutil.virtual_memory()
+        process = psutil.Process()
+        
         logger.info(f"🚀 **BACKEND**: Starting generate-layout request at {time.strftime('%H:%M:%S')}")
         logger.info(f"📊 **REQUEST INFO**: Platform: {req.platform_selected}, Data prep only: {req.data_prep_only}")
+        logger.info(f"💾 **MEMORY**: Available: {memory.available/(1024**3):.2f}GB, Used: {memory.percent}%, Process: {process.memory_info().rss/(1024**2):.2f}MB")
         
         # Data-Prep Only branch - ENHANCED VERSION with error handling
         if req.data_prep_only:

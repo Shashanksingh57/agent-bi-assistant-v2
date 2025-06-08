@@ -666,6 +666,17 @@ st.sidebar.markdown(f'''
 # ─── Sidebar Navigation & Controls ──────────────────────────────────────────────
 st.sidebar.markdown("<h3 style='color: black; font-size:18px; margin-bottom: 1rem; margin-top: 0.5rem;'>🧭 Navigation & Controls</h3>", unsafe_allow_html=True)
 
+# Add backend health check button in sidebar
+if st.sidebar.button("🔍 Check Backend Health", help="Test if backend server is responsive"):
+    with st.sidebar:
+        with st.spinner("Checking backend..."):
+            health_ok, health_msg = check_backend_health()
+            if health_ok:
+                st.success(f"✅ {health_msg}")
+            else:
+                st.error(f"❌ {health_msg}")
+                st.info("💡 **Try restarting** the backend server")
+
 # Navigation buttons with grey/white theme
 pages = [
     ("🏗️ Data Model", "Data Model"),
@@ -790,6 +801,21 @@ def call_api(endpoint, payload, timeout=900, max_retries=2):
             continue
     
     return {}
+
+def check_backend_health():
+    """Test if backend is responsive before making complex requests"""
+    try:
+        response = requests.get(f"{FASTAPI_URL}/health", timeout=10)
+        if response.status_code == 200:
+            return True, "Backend is healthy"
+        else:
+            return False, f"Backend returned status {response.status_code}"
+    except requests.exceptions.Timeout:
+        return False, "Backend health check timed out (10s) - server may be hung"
+    except requests.exceptions.ConnectionError:
+        return False, "Cannot connect to backend - server may be down"
+    except Exception as e:
+        return False, f"Health check error: {str(e)}"
 
 # ─── AI Vision Helper Functions ──────────────────────────────────────────────────
 def optimize_image_for_analysis(uploaded_file):
@@ -1756,6 +1782,21 @@ elif state.page == "Data Prep":
             chunk_size = len(tables)
 
         if st.button("🚀 Generate Data Preparation Instructions", type="primary"):
+            # Check backend health first
+            health_ok, health_msg = check_backend_health()
+            if not health_ok:
+                st.error(f"❌ **Backend Connection Issue**: {health_msg}")
+                st.info("🔧 **Solutions**:")
+                st.markdown("""
+                - **Check if backend is running**: `python run.py` or `uvicorn main:app --reload --timeout-keep-alive 900`
+                - **Restart the backend** if it appears hung
+                - **Check terminal/console** for backend error messages
+                - **Memory issue**: Backend may have run out of memory
+                """)
+                return
+            else:
+                st.success(f"✅ Backend health check passed: {health_msg}")
+            
             # Add progress tracking
             progress_placeholder = st.empty()
             progress_bar = st.progress(0)
