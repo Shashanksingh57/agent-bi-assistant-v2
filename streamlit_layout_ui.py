@@ -1793,7 +1793,7 @@ elif state.page == "Data Prep":
                 - **Check terminal/console** for backend error messages
                 - **Memory issue**: Backend may have run out of memory
                 """)
-                return
+                st.stop()  # Use st.stop() instead of return in Streamlit
             else:
                 st.success(f"✅ Backend health check passed: {health_msg}")
             
