@@ -18,9 +18,9 @@ python run.py
 
 **Run Services Separately**:
 ```bash
-# Backend API (Terminal 1)
+# Backend API (Terminal 1) - with extended timeouts for AI processing
 cd agent-bi-assistant
-uvicorn main:app --reload
+uvicorn main:app --reload --timeout-keep-alive 900
 
 # Frontend UI (Terminal 2)
 cd agent-bi-assistant

@@ -737,7 +737,15 @@ def call_api(endpoint, payload, timeout=900, max_retries=2):
                 st.info(f"🔄 Retrying in {wait_time} seconds... (Attempt {attempt + 1}/{max_retries + 1})")
                 time.sleep(wait_time)
             
+            # Add detailed timing and debugging
+            start_time = time.time()
+            st.info(f"🚀 **Starting API call** to {endpoint} with {timeout}s timeout at {time.strftime('%H:%M:%S')}")
+            
             r = requests.post(url, headers=headers, json=payload, timeout=timeout)
+            
+            elapsed_time = time.time() - start_time
+            st.success(f"✅ **API call completed** in {elapsed_time:.1f} seconds")
+            
             if r.status_code != 200:
                 if attempt == max_retries:  # Last attempt
                     st.error(f"❌ {endpoint} error {r.status_code}: {r.text}")
@@ -745,14 +753,40 @@ def call_api(endpoint, payload, timeout=900, max_retries=2):
             return r.json()
             
         except requests.exceptions.Timeout as e:
+            elapsed_time = time.time() - start_time
             if attempt == max_retries:  # Last attempt
-                st.error(f"❌ Request timed out after {timeout} seconds. The AI is taking longer than expected. Please try chunked processing for large models.")
-                st.info(f"🔍 **Debug info**: Timeout was set to {timeout} seconds. Error: {str(e)}")
+                st.error(f"❌ **TIMEOUT DETECTED**: Request timed out after **{elapsed_time:.1f} seconds** (configured: {timeout}s)")
+                st.error(f"🔍 **This suggests a proxy/hosting timeout** - the actual timeout ({elapsed_time:.1f}s) is much shorter than configured ({timeout}s)")
+                st.info(f"🔧 **Debug details**: Endpoint: {endpoint}, Error: {str(e)}")
+                
+                # Add environment detection and solutions
+                if "localhost" in FASTAPI_URL or "127.0.0.1" in FASTAPI_URL:
+                    st.info("🏠 **Running locally** - the timeout is happening before our application code")
+                    st.markdown("""
+                    **Possible causes and solutions:**
+                    - **Uvicorn timeout**: Try starting with `uvicorn main:app --timeout-keep-alive 900`
+                    - **Operating system limits**: Check system network timeout settings
+                    - **Firewall/antivirus**: May be terminating long connections
+                    - **Router/network**: Some routers drop long connections
+                    """)
+                else:
+                    st.info("☁️ **Running on hosted service** - likely has proxy/load balancer timeout limits")
+                    st.markdown("""
+                    **Typical hosting timeouts:**
+                    - **Heroku**: 30 seconds (H12 timeout)
+                    - **Vercel**: 10 seconds (function timeout)
+                    - **Railway**: 60 seconds (default)
+                    - **Render**: 120 seconds (can be configured)
+                    - **AWS Lambda**: 15 minutes max
+                    """)
+                
+                st.markdown("**🛠️ Immediate workaround**: Try chunked processing which uses smaller requests")
             continue
             
         except requests.exceptions.RequestException as e:
+            elapsed_time = time.time() - start_time
             if attempt == max_retries:  # Last attempt
-                st.error(f"❌ Connection error: {str(e)}")
+                st.error(f"❌ Connection error after {elapsed_time:.1f}s: {str(e)}")
             continue
     
     return {}

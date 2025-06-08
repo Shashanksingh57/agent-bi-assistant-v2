@@ -1365,7 +1365,13 @@ async def process_relationships_only(relationships_sql):
 @app.post("/api/v1/generate-layout", response_model=GenerateResponse)
 async def generate_layout(req: GenerateRequest):
     """Generate layout instructions or data preparation steps"""
+    import time
+    start_time = time.time()
+    
     try:
+        logger.info(f"🚀 **BACKEND**: Starting generate-layout request at {time.strftime('%H:%M:%S')}")
+        logger.info(f"📊 **REQUEST INFO**: Platform: {req.platform_selected}, Data prep only: {req.data_prep_only}")
+        
         # Data-Prep Only branch - ENHANCED VERSION with error handling
         if req.data_prep_only:
             # Validate input
@@ -1467,6 +1473,9 @@ Please try again or contact support if the issue persists.
                 model_dict,  # Use the parsed dictionary
                 req.platform_selected
             )
+            
+            elapsed_time = time.time() - start_time
+            logger.info(f"✅ **BACKEND**: Data prep generation completed in {elapsed_time:.1f} seconds")
             
             return GenerateResponse(
                 wireframe_json="", 
@@ -1602,12 +1611,13 @@ Please try again or contact support if the issue persists.
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Unexpected error in generate_layout: {str(e)}")
+        elapsed_time = time.time() - start_time
+        logger.error(f"❌ **BACKEND**: Error in generate_layout after {elapsed_time:.1f} seconds: {str(e)}")
         logger.error(f"Request model_metadata type: {type(req.model_metadata)}")
         logger.error(f"Request data preview: {str(req.model_metadata)[:200]}...")
         raise HTTPException(
             status_code=500,
-            detail=f"Internal server error: {str(e)}"
+            detail=f"Internal server error after {elapsed_time:.1f}s: {str(e)}"
         )
 
 # ─── Sprint Board Generation ────────────────────────────────────────────────────

@@ -10,11 +10,20 @@ def start_process(cmd):
 
 def main():
     procs = []
-    # 1) Start FastAPI via Uvicorn
-    procs.append(start_process([sys.executable, "-m", "uvicorn", "main:app", "--reload"]))
+    # 1) Start FastAPI via Uvicorn with extended timeout settings
+    uvicorn_cmd = [
+        sys.executable, "-m", "uvicorn", "main:app", "--reload",
+        "--timeout-keep-alive", "900",  # 15 minutes keep-alive
+        "--timeout-graceful-shutdown", "30"  # 30 seconds for graceful shutdown
+    ]
+    print("🚀 Starting FastAPI with extended timeouts (15 minutes)...")
+    procs.append(start_process(uvicorn_cmd))
+    
     # Give the API a second to come up before starting Streamlit
     time.sleep(1)
+    
     # 2) Start Streamlit frontend
+    print("🎨 Starting Streamlit frontend...")
     procs.append(start_process([sys.executable, "-m", "streamlit", "run", "streamlit_layout_ui.py"]))
 
     try:
