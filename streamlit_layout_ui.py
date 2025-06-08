@@ -839,19 +839,19 @@ def upload_and_analyze_image(uploaded_file, platform, analysis_type="ai_vision")
             files = {"file": (uploaded_file.name, optimized_file_data, uploaded_file.type)}
             data = {"platform": platform}
             
-            status_text.text("🧠 AI Vision analyzing layout... (This may take 2-5 minutes)")
+            status_text.text("🧠 AI Vision analyzing layout... (This may take 5-15 minutes)")
             progress_bar.progress(50)
             
             # Show helpful message while processing
-            processing_msg = st.info("💡 **AI Vision is working**: GPT-4o is carefully analyzing your wireframe. Complex images may take several minutes to process thoroughly.")
+            processing_msg = st.info("💡 **AI Vision is working**: GPT-4o is carefully analyzing your wireframe. Complex images may take up to 15 minutes - please be patient!")
             
-            # Increased timeout for AI Vision processing - allow up to 10 minutes
+            # Much longer timeout for AI Vision processing - revert to working timeouts
             try:
                 response = requests.post(
                     f"{FASTAPI_URL}/analyze-image",
                     files=files,
                     data=data,
-                    timeout=600  # Increased to 10 minutes for complex images
+                    timeout=900  # Increased to 15 minutes to match backend (was working before)
                 )
                 # Clear the processing message on success
                 processing_msg.empty()
@@ -1787,8 +1787,8 @@ Keep instructions specific to these tables only.
                         }
                         
                         try:
-                            # Use retry logic for chunks - they're smaller so more likely to succeed
-                            resp = call_api("generate-layout", chunk_payload, timeout=180, max_retries=1)  # 3 minutes per chunk, 1 retry
+                            # Use longer timeout for chunks and no retries (was working before)
+                            resp = call_api("generate-layout", chunk_payload, timeout=600, max_retries=0)  # 10 minutes per chunk, no retries
                             chunk_instructions = resp.get("layout_instructions", "")
                             
                             if chunk_instructions:
@@ -1913,46 +1913,26 @@ Provide comprehensive data preparation instructions with:
                     progress_placeholder.text("🔧 Preparing optimization settings...")
                     progress_bar.progress(20)
                     
-                    # More aggressive optimization based on complexity
+                    # Less aggressive optimization - revert closer to working version
                     if is_very_complex:
-                        # For very complex models, send minimal schema
-                        st.warning("🔥 Applying maximum optimization for very large model...")
+                        # For very complex models, still optimize but less aggressively
+                        st.info("💡 Applying moderate optimization for large model...")
                         
-                        # Only send table names and key columns
-                        minimal_tables = []
-                        for table in tables[:8]:  # Reduced to 8 tables max
+                        # Send more tables and columns than before
+                        simplified_tables = []
+                        for table in tables[:15]:  # Increased from 8 to 15 tables
                             table_dict = safe_get_dict(table)
                             if table_dict:
-                                # Only include essential columns
-                                essential_columns = []
-                                all_columns = table_dict.get("columns", [])
-                                
-                                # Get primary keys and important columns
-                                for col in all_columns[:6]:  # Max 6 columns per table
-                                    if isinstance(col, dict):
-                                        col_name = col.get("column_name", "")
-                                        # Prioritize keys and IDs
-                                        if any(key in col_name.lower() for key in ["id", "key", "code", "name"]):
-                                            essential_columns.append({
-                                                "column_name": col_name,
-                                                "data_type": col.get("data_type", "")
-                                            })
-                                
-                                # If no key columns found, take first 3
-                                if not essential_columns:
-                                    essential_columns = [
-                                        {"column_name": c.get("column_name", ""), "data_type": c.get("data_type", "")}
-                                        for c in all_columns[:3]
-                                    ]
-                                
-                                minimal_tables.append({
+                                # Include more columns per table
+                                simplified_table = {
                                     "table_name": table_dict.get("table_name"),
-                                    "columns": essential_columns
-                                })
+                                    "columns": table_dict.get("columns", [])[:20]  # Increased from 6 to 20 columns
+                                }
+                                simplified_tables.append(simplified_table)
                         
                         optimized_metadata = {
-                            "tables": minimal_tables,
-                            "relationships": model_dict.get("relationships", [])[:6]  # Max 6 relationships
+                            "tables": simplified_tables,
+                            "relationships": model_dict.get("relationships", [])[:15]  # Increased from 6 to 15 relationships
                         }
                         enhanced_payload["model_metadata"] = optimized_metadata
                         
@@ -1978,41 +1958,41 @@ Provide comprehensive data preparation instructions with:
                         enhanced_payload["model_metadata"] = optimized_metadata
                         st.info(f"📊 Processing {len(filtered_tables)} selected tables...")
                         
-                    # Optimize payload for large models
+                    # Optimize payload for large models - less aggressive than before
                     elif is_complex:
-                        # For complex models, send only essential table info
+                        # For complex models, optimize moderately
                         simplified_tables = []
-                        for table in tables[:10]:  # Reduced from 12 to 10
+                        for table in tables[:20]:  # Increased from 10 to 20
                             table_dict = safe_get_dict(table)
                             if table_dict:
                                 simplified_table = {
                                     "table_name": table_dict.get("table_name"),
-                                    "columns": table_dict.get("columns", [])[:12]  # Reduced from 15 to 12
+                                    "columns": table_dict.get("columns", [])[:25]  # Increased from 12 to 25
                                 }
                                 simplified_tables.append(simplified_table)
                         
                         optimized_metadata = {
                             "tables": simplified_tables,
-                            "relationships": model_dict.get("relationships", [])[:12]  # Reduced limit
+                            "relationships": model_dict.get("relationships", [])[:20]  # Increased limit
                         }
                         enhanced_payload["model_metadata"] = optimized_metadata
                         
-                        st.info("💡 Optimizing large model for faster processing...")
+                        st.info("💡 Applying light optimization for better processing...")
                     
-                    # Conservative timeout strategy
+                    # Much more generous timeout strategy - revert to working timeouts
                     if is_very_complex:
-                        timeout = 300  # 5 minutes max for very complex
+                        timeout = 900  # 15 minutes for very complex (was working before)
                     elif is_complex:
-                        timeout = 240  # 4 minutes for complex
+                        timeout = 720  # 12 minutes for complex (was working before)
                     else:
-                        timeout = 180  # 3 minutes for normal
+                        timeout = 600  # 10 minutes for normal (was working before)
                     
                     try:
                         progress_placeholder.text("🤖 Generating AI-powered instructions...")
                         progress_bar.progress(50)
                         
-                        # Use retry logic - for single requests, use default max_retries=2
-                        resp = call_api("generate-layout", enhanced_payload, timeout=timeout, max_retries=1)
+                        # Use fewer retries with longer timeouts (was working before)
+                        resp = call_api("generate-layout", enhanced_payload, timeout=timeout, max_retries=0)
                         
                         progress_bar.progress(90)
                         progress_placeholder.text("📝 Finalizing instructions...")

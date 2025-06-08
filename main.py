@@ -19,11 +19,11 @@ from PIL import Image
 # ─── Configuration ───────────────────────────────────────────────────────────────
 load_dotenv()
 
-# Initialize OpenAI client for v1.0+ with optimized timeout settings
+# Initialize OpenAI client for v1.0+ with very generous timeout settings
 client = OpenAI(
     api_key=os.getenv("OPENAI_API_KEY"),
-    timeout=600.0,  # 10 minutes global timeout for vision calls
-    max_retries=3   # Built-in retry for network issues
+    timeout=900.0,  # 15 minutes global timeout (was working before)
+    max_retries=2   # Fewer retries but longer timeouts
 )
 
 # Configure logging
@@ -708,11 +708,11 @@ Be specific about positioning (top-left, center, bottom-right, etc.) and visual 
             }
         ]
         
-        # Call GPT-4o Vision with retry logic and increased timeout
+        # Call GPT-4o Vision with much longer timeout - revert to working settings
         layout_description = create_vision_call_with_retry(
             messages=vision_messages,
             max_tokens=2000,  # Increased for more detailed analysis
-            timeout=300,      # 5 minutes timeout
+            timeout=900,      # 15 minutes timeout (was working before)
             max_retries=2     # 3 total attempts
         )
         
