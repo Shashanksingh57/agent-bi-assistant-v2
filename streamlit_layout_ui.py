@@ -719,25 +719,42 @@ st.sidebar.markdown(
     unsafe_allow_html=True
 )
 # ─── FastAPI POST helper ─────────────────────────────────────────────────────────
-def call_api(endpoint, payload, timeout=120):
-    """Helper function to call FastAPI endpoints with better timeout handling"""
+def call_api(endpoint, payload, timeout=120, max_retries=2):
+    """Helper function to call FastAPI endpoints with retry logic and better timeout handling"""
+    import time
+    
     url = f"{FASTAPI_URL}/{endpoint}"
     headers = {
         "Authorization": f"Bearer {API_TOKEN}",
         "Content-Type":  "application/json"
     }
-    try:
-        r = requests.post(url, headers=headers, json=payload, timeout=timeout)
-        if r.status_code != 200:
-            st.error(f"❌ {endpoint} error {r.status_code}: {r.text}")
-            return {}
-        return r.json()
-    except requests.exceptions.Timeout:
-        st.error("❌ Request timed out. The AI is taking longer than expected. Please try again with a simpler model.")
-        return {}
-    except requests.exceptions.RequestException as e:
-        st.error(f"❌ Connection error: {str(e)}")
-        return {}
+    
+    for attempt in range(max_retries + 1):
+        try:
+            # Add slight delay between retries
+            if attempt > 0:
+                wait_time = 2 ** attempt  # Exponential backoff: 2, 4 seconds
+                st.info(f"🔄 Retrying in {wait_time} seconds... (Attempt {attempt + 1}/{max_retries + 1})")
+                time.sleep(wait_time)
+            
+            r = requests.post(url, headers=headers, json=payload, timeout=timeout)
+            if r.status_code != 200:
+                if attempt == max_retries:  # Last attempt
+                    st.error(f"❌ {endpoint} error {r.status_code}: {r.text}")
+                return {}
+            return r.json()
+            
+        except requests.exceptions.Timeout:
+            if attempt == max_retries:  # Last attempt
+                st.error("❌ Request timed out after multiple attempts. The AI is taking longer than expected. Please try chunked processing for large models.")
+            continue
+            
+        except requests.exceptions.RequestException as e:
+            if attempt == max_retries:  # Last attempt
+                st.error(f"❌ Connection error: {str(e)}")
+            continue
+    
+    return {}
 
 # ─── AI Vision Helper Functions ──────────────────────────────────────────────────
 def optimize_image_for_analysis(uploaded_file):
@@ -1651,6 +1668,24 @@ elif state.page == "Data Prep":
                 height=100
             )
         
+        # Chunked generation option for large models
+        model_dict = safe_get_dict(state.model_metadata or {})
+        tables = safe_get_list(model_dict.get("tables", []))
+        total_columns = sum(len(safe_get_list(safe_get_dict(t).get("columns", []))) for t in tables)
+        is_very_large = len(tables) > 25 or total_columns > 300
+        
+        if is_very_large:
+            st.warning(f"🚨 **Very Large Model Detected**: {len(tables)} tables, {total_columns} columns")
+            col1, col2 = st.columns(2)
+            with col1:
+                use_chunked = st.checkbox("📦 Use Chunked Processing", value=True, 
+                                        help="Process tables in smaller batches to prevent timeouts")
+            with col2:
+                chunk_size = st.slider("Tables per chunk", min_value=3, max_value=8, value=5) if use_chunked else len(tables)
+        else:
+            use_chunked = False
+            chunk_size = len(tables)
+
         if st.button("🚀 Generate Data Preparation Instructions", type="primary"):
             # Add progress tracking
             progress_placeholder = st.empty()
@@ -1660,160 +1695,325 @@ elif state.page == "Data Prep":
                 # Default to Advanced complexity (hidden from UI)
                 complexity = "Advanced (Complex Logic)"
                 
-                enhanced_requirements = f"""
-                Data Source: {data_source}
-                Complexity Level: {complexity}
-                Include Validation: {include_validation}
-                Include Performance Tips: {include_performance}
-                Include Troubleshooting: {include_troubleshooting}
-                Include Code Snippets: {include_code_snippets}
-                Additional Requirements: {custom_requirements}
-                
-                IMPORTANT INSTRUCTION: For each data transformation step, provide BOTH:
-                1. M Code Solution: Provide the complete M code/DAX formula that can be used in the Advanced Editor or formula bar
-                2. UI/Toolbar Solution: Provide detailed click-by-click instructions using the Power Query Editor or {tool} interface toolbar features
-                
-                Example format for each transformation:
-                ### Remove Null Values from Column X
-                
-                **Method 1: Using M Code**
-                ```m
-                = Table.SelectRows(PreviousStep, each [ColumnX] <> null)
-                ```
-                
-                **Method 2: Using Power Query Editor Toolbar**
-                1. Click on the column header "ColumnX"
-                2. Go to Home tab → Remove Rows → Remove Blank Rows
-                3. Or: Right-click column → Filter → Uncheck "null" values
-                
-                Provide this dual approach for ALL transformations including:
-                - Data type conversions
-                - Null handling
-                - Column renaming
-                - Filtering and sorting
-                - Joining tables
-                - Creating calculated columns
-                - Grouping and aggregations
-                - Date/time transformations
-                - Text manipulations
-                - Error handling
-                """
-                
-                # Add persona modifier to prompt
-                persona_modifier = get_persona_prompt_modifier()
-                if persona_modifier:
-                    enhanced_requirements += f"\n\n{persona_modifier}"
-                
-                enhanced_payload = {
-                    "sketch_description": "",
-                    "platform_selected": tool,
-                    "custom_prompt": enhanced_requirements.strip(),
-                    "model_metadata": state.model_metadata,
-                    "include_data_prep": True,
-                    "data_prep_only": True,
-                    "kpi_list": state.kpi_list,
-                    "data_dictionary": state.data_dictionary
-                }
-                
-                # Update progress
-                progress_placeholder.text("📊 Analyzing model complexity...")
-                progress_bar.progress(10)
-                
-                # Optimize model metadata to reduce payload size
-                model_dict = safe_get_dict(state.model_metadata or {})
-                tables = safe_get_list(model_dict.get("tables", []))
-                total_columns = sum(len(safe_get_list(safe_get_dict(t).get("columns", []))) for t in tables)
-                
                 # Determine complexity
                 is_complex = len(tables) > 10 or total_columns > 100
                 is_very_complex = len(tables) > 20 or total_columns > 200
                 
-                # Show warning for very complex models
-                if is_very_complex:
-                    st.warning(f"⚠️ Large data model detected ({len(tables)} tables, {total_columns} columns). Processing may take a few minutes...")
-                
-                progress_placeholder.text("🔧 Preparing optimization settings...")
-                progress_bar.progress(20)
-                
-                # Handle table selection if available
-                if 'selected_tables' in locals() and selected_tables:
-                    # Filter tables based on selection
-                    filtered_tables = []
-                    for table in tables:
-                        table_dict = safe_get_dict(table)
-                        if table_dict and table_dict.get("table_name") in selected_tables:
-                            filtered_tables.append(table)
+                if use_chunked and is_very_large:
+                    # CHUNKED PROCESSING FOR VERY LARGE MODELS
+                    st.info(f"🔄 Processing {len(tables)} tables in chunks of {chunk_size}...")
                     
-                    # Update metadata with filtered tables
-                    optimized_metadata = {
-                        "tables": filtered_tables,
-                        "relationships": model_dict.get("relationships", [])
-                    }
-                    enhanced_payload["model_metadata"] = optimized_metadata
-                    st.info(f"📊 Processing {len(filtered_tables)} selected tables...")
+                    all_instructions = []
+                    table_chunks = [tables[i:i + chunk_size] for i in range(0, len(tables), chunk_size)]
                     
-                # Optimize payload for large models
-                elif is_complex:
-                    # For complex models, send only essential table info
-                    simplified_tables = []
-                    for table in tables[:15]:  # Limit to first 15 tables
-                        table_dict = safe_get_dict(table)
-                        if table_dict:
-                            simplified_table = {
-                                "table_name": table_dict.get("table_name"),
-                                "columns": table_dict.get("columns", [])[:20]  # Limit columns
-                            }
-                            simplified_tables.append(simplified_table)
-                    
-                    optimized_metadata = {
-                        "tables": simplified_tables,
-                        "relationships": model_dict.get("relationships", [])[:20]  # Limit relationships
-                    }
-                    enhanced_payload["model_metadata"] = optimized_metadata
-                    
-                    st.info("💡 Optimizing large model for faster processing...")
-                
-                # Increase timeout significantly for complex models
-                if is_very_complex:
-                    timeout = 600  # 10 minutes for very complex
-                elif is_complex:
-                    timeout = 420  # 7 minutes for complex
-                else:
-                    timeout = 300  # 5 minutes for normal
-                
-                try:
-                    progress_placeholder.text("🤖 Generating AI-powered instructions...")
-                    progress_bar.progress(50)
-                    
-                    resp = call_api("generate-layout", enhanced_payload, timeout=timeout)
-                    
-                    progress_bar.progress(90)
-                    progress_placeholder.text("📝 Finalizing instructions...")
-                    
-                    state.data_prep_instructions = resp.get("layout_instructions", "")
-                    
-                    if state.data_prep_instructions:
-                        progress_bar.progress(100)
-                        progress_placeholder.empty()
-                        st.success("✅ Data preparation instructions generated successfully!")
-                    else:
-                        progress_bar.progress(100)
-                        progress_placeholder.empty()
-                        st.error("❌ Failed to generate instructions. Please try again with fewer tables.")
+                    for chunk_idx, chunk_tables in enumerate(table_chunks):
+                        progress_placeholder.text(f"📊 Processing chunk {chunk_idx + 1}/{len(table_chunks)} ({len(chunk_tables)} tables)...")
+                        progress_pct = int((chunk_idx / len(table_chunks)) * 80)  # Use 80% for chunks
+                        progress_bar.progress(progress_pct)
                         
-                except Exception as e:
-                    progress_bar.progress(100)
-                    progress_placeholder.empty()
-                    if "timeout" in str(e).lower():
-                        st.error("⏱️ **Generation timed out.** Try these solutions:")
-                        st.markdown("""
-                        - **Reduce complexity**: Focus on 5-10 most important tables
-                        - **Split the work**: Generate instructions for groups of tables separately
-                        - **Simplify requirements**: Uncheck some advanced options
-                        - **Try again**: Sometimes the server is just busy
-                        """)
+                        # Create simplified prompt for each chunk
+                        chunk_requirements = f"""
+Create data preparation instructions for {tool} using {data_source}.
+
+Tables in this chunk: {', '.join(safe_get_dict(t).get("table_name", "") for t in chunk_tables)}
+
+Focus on:
+1. Essential data cleaning for these tables
+2. Key relationships within this chunk
+3. Required calculations and transformations
+
+Keep instructions specific to these tables only.
+{custom_requirements if chunk_idx == 0 else ''}
+"""
+                        
+                        # Create minimal metadata for this chunk
+                        chunk_metadata = {
+                            "tables": [
+                                {
+                                    "table_name": safe_get_dict(t).get("table_name"),
+                                    "columns": safe_get_dict(t).get("columns", [])[:10]  # Limit columns per table
+                                }
+                                for t in chunk_tables
+                            ],
+                            "relationships": [
+                                r for r in model_dict.get("relationships", [])
+                                if any(safe_get_dict(t).get("table_name") in str(r) for t in chunk_tables)
+                            ][:5]  # Only relationships relevant to this chunk
+                        }
+                        
+                        chunk_payload = {
+                            "sketch_description": "",
+                            "platform_selected": tool,
+                            "custom_prompt": chunk_requirements.strip(),
+                            "model_metadata": chunk_metadata,
+                            "include_data_prep": True,
+                            "data_prep_only": True,
+                            "kpi_list": state.kpi_list if chunk_idx == 0 else None,  # Only include KPIs in first chunk
+                            "data_dictionary": state.data_dictionary if chunk_idx == 0 else None
+                        }
+                        
+                        try:
+                            # Use retry logic for chunks - they're smaller so more likely to succeed
+                            resp = call_api("generate-layout", chunk_payload, timeout=180, max_retries=1)  # 3 minutes per chunk, 1 retry
+                            chunk_instructions = resp.get("layout_instructions", "")
+                            
+                            if chunk_instructions:
+                                # Add chunk header
+                                chunk_header = f"\n\n## Chunk {chunk_idx + 1}: {', '.join(safe_get_dict(t).get('table_name', '') for t in chunk_tables)}\n\n"
+                                all_instructions.append(chunk_header + chunk_instructions)
+                                st.success(f"✅ Chunk {chunk_idx + 1} completed successfully")
+                            else:
+                                st.warning(f"⚠️ Chunk {chunk_idx + 1} failed to generate. Continuing with other chunks...")
+                                
+                        except Exception as e:
+                            st.warning(f"⚠️ Chunk {chunk_idx + 1} error: {str(e)}. Continuing with other chunks...")
+                            continue
+                    
+                    # Combine all instructions
+                    if all_instructions:
+                        # Add overall header
+                        combined_instructions = f"# Data Preparation Instructions for {tool}\n\n"
+                        combined_instructions += f"**Generated for {len(tables)} tables in {len(table_chunks)} chunks**\n\n"
+                        combined_instructions += "".join(all_instructions)
+                        
+                        # Add final summary section
+                        combined_instructions += f"""
+
+## Summary and Next Steps
+
+This data preparation guide covers all {len(tables)} tables in your model. Each chunk above provides specific instructions for its tables.
+
+### Recommended Processing Order:
+1. Start with foundational tables (dimension tables, lookup tables)
+2. Process fact tables and transaction tables
+3. Create calculated fields and derived metrics
+4. Validate relationships and data quality
+5. Optimize performance for {tool}
+
+### Key Considerations:
+- Ensure consistent data types across related tables
+- Validate foreign key relationships between chunks
+- Monitor data quality throughout the process
+- Test performance with sample data before full load
+"""
+                        
+                        state.data_prep_instructions = combined_instructions
+                        progress_bar.progress(100)
+                        progress_placeholder.empty()
+                        st.success(f"✅ Chunked processing complete! Generated instructions for {len(tables)} tables in {len(table_chunks)} chunks.")
                     else:
-                        st.error(f"❌ Error: {str(e)}")
+                        progress_bar.progress(100)
+                        progress_placeholder.empty()
+                        st.error("❌ All chunks failed. Try reducing chunk size or simplifying the model.")
+                
+                else:
+                    # SINGLE REQUEST PROCESSING (Original logic with optimizations)
+                    # Simplify requirements for better performance
+                    if is_very_complex:
+                        # Minimal prompt for very complex models
+                        enhanced_requirements = f"""
+Create data preparation instructions for {tool} using {data_source}.
+
+Focus on:
+1. Essential data cleaning steps
+2. Key table joins
+3. Required calculations
+
+Keep instructions concise and practical.
+{custom_requirements}
+"""
+                    elif is_complex:
+                        # Reduced prompt for complex models
+                        enhanced_requirements = f"""
+Data Source: {data_source}
+Platform: {tool}
+
+Provide data preparation steps including:
+- Data cleaning and validation
+- Table relationships and joins
+- Essential calculations
+
+{custom_requirements}
+"""
+                    else:
+                        # Full prompt only for simple models
+                        enhanced_requirements = f"""
+Data Source: {data_source}
+Platform: {tool}
+Include Validation: {include_validation}
+Include Performance Tips: {include_performance}
+
+Provide comprehensive data preparation instructions with:
+1. Data cleaning and transformation steps
+2. Table joining strategies
+3. Calculations and derived fields
+4. Best practices for {tool}
+
+{custom_requirements}
+"""
+                    
+                    # Add persona modifier to prompt
+                    persona_modifier = get_persona_prompt_modifier()
+                    if persona_modifier:
+                        enhanced_requirements += f"\n\n{persona_modifier}"
+                    
+                    enhanced_payload = {
+                        "sketch_description": "",
+                        "platform_selected": tool,
+                        "custom_prompt": enhanced_requirements.strip(),
+                        "model_metadata": state.model_metadata,
+                        "include_data_prep": True,
+                        "data_prep_only": True,
+                        "kpi_list": state.kpi_list,
+                        "data_dictionary": state.data_dictionary
+                    }
+                    
+                    # Update progress
+                    progress_placeholder.text("📊 Analyzing model complexity...")
+                    progress_bar.progress(10)
+                    
+                    # Show warning for very complex models
+                    if is_very_complex:
+                        st.warning(f"⚠️ Large data model detected ({len(tables)} tables, {total_columns} columns). Processing may take a few minutes...")
+                    
+                    progress_placeholder.text("🔧 Preparing optimization settings...")
+                    progress_bar.progress(20)
+                    
+                    # More aggressive optimization based on complexity
+                    if is_very_complex:
+                        # For very complex models, send minimal schema
+                        st.warning("🔥 Applying maximum optimization for very large model...")
+                        
+                        # Only send table names and key columns
+                        minimal_tables = []
+                        for table in tables[:8]:  # Reduced to 8 tables max
+                            table_dict = safe_get_dict(table)
+                            if table_dict:
+                                # Only include essential columns
+                                essential_columns = []
+                                all_columns = table_dict.get("columns", [])
+                                
+                                # Get primary keys and important columns
+                                for col in all_columns[:6]:  # Max 6 columns per table
+                                    if isinstance(col, dict):
+                                        col_name = col.get("column_name", "")
+                                        # Prioritize keys and IDs
+                                        if any(key in col_name.lower() for key in ["id", "key", "code", "name"]):
+                                            essential_columns.append({
+                                                "column_name": col_name,
+                                                "data_type": col.get("data_type", "")
+                                            })
+                                
+                                # If no key columns found, take first 3
+                                if not essential_columns:
+                                    essential_columns = [
+                                        {"column_name": c.get("column_name", ""), "data_type": c.get("data_type", "")}
+                                        for c in all_columns[:3]
+                                    ]
+                                
+                                minimal_tables.append({
+                                    "table_name": table_dict.get("table_name"),
+                                    "columns": essential_columns
+                                })
+                        
+                        optimized_metadata = {
+                            "tables": minimal_tables,
+                            "relationships": model_dict.get("relationships", [])[:6]  # Max 6 relationships
+                        }
+                        enhanced_payload["model_metadata"] = optimized_metadata
+                        
+                    # Handle table selection if available
+                    elif 'selected_tables' in locals() and selected_tables:
+                        # Filter tables based on selection
+                        filtered_tables = []
+                        for table in tables:
+                            table_dict = safe_get_dict(table)
+                            if table_dict and table_dict.get("table_name") in selected_tables:
+                                # Simplify columns for selected tables too
+                                simplified_table = {
+                                    "table_name": table_dict.get("table_name"),
+                                    "columns": table_dict.get("columns", [])[:12]  # Limit columns
+                                }
+                                filtered_tables.append(simplified_table)
+                        
+                        # Update metadata with filtered tables
+                        optimized_metadata = {
+                            "tables": filtered_tables,
+                            "relationships": model_dict.get("relationships", [])[:12]
+                        }
+                        enhanced_payload["model_metadata"] = optimized_metadata
+                        st.info(f"📊 Processing {len(filtered_tables)} selected tables...")
+                        
+                    # Optimize payload for large models
+                    elif is_complex:
+                        # For complex models, send only essential table info
+                        simplified_tables = []
+                        for table in tables[:10]:  # Reduced from 12 to 10
+                            table_dict = safe_get_dict(table)
+                            if table_dict:
+                                simplified_table = {
+                                    "table_name": table_dict.get("table_name"),
+                                    "columns": table_dict.get("columns", [])[:12]  # Reduced from 15 to 12
+                                }
+                                simplified_tables.append(simplified_table)
+                        
+                        optimized_metadata = {
+                            "tables": simplified_tables,
+                            "relationships": model_dict.get("relationships", [])[:12]  # Reduced limit
+                        }
+                        enhanced_payload["model_metadata"] = optimized_metadata
+                        
+                        st.info("💡 Optimizing large model for faster processing...")
+                    
+                    # Conservative timeout strategy
+                    if is_very_complex:
+                        timeout = 300  # 5 minutes max for very complex
+                    elif is_complex:
+                        timeout = 240  # 4 minutes for complex
+                    else:
+                        timeout = 180  # 3 minutes for normal
+                    
+                    try:
+                        progress_placeholder.text("🤖 Generating AI-powered instructions...")
+                        progress_bar.progress(50)
+                        
+                        # Use retry logic - for single requests, use default max_retries=2
+                        resp = call_api("generate-layout", enhanced_payload, timeout=timeout, max_retries=1)
+                        
+                        progress_bar.progress(90)
+                        progress_placeholder.text("📝 Finalizing instructions...")
+                        
+                        state.data_prep_instructions = resp.get("layout_instructions", "")
+                        
+                        if state.data_prep_instructions:
+                            progress_bar.progress(100)
+                            progress_placeholder.empty()
+                            st.success("✅ Data preparation instructions generated successfully!")
+                        else:
+                            progress_bar.progress(100)
+                            progress_placeholder.empty()
+                            st.error("❌ Failed to generate instructions. Please try chunked processing for large models.")
+                            
+                    except Exception as e:
+                        progress_bar.progress(100)
+                        progress_placeholder.empty()
+                        if "timeout" in str(e).lower():
+                            st.error("⏱️ **Generation timed out.** Try these solutions:")
+                            if is_very_large:
+                                st.markdown("""
+                                - **✅ Use Chunked Processing**: Enable the checkbox above to process tables in smaller batches
+                                - **Reduce chunk size**: Try 3-4 tables per chunk instead of 5-8
+                                - **Focus on key tables**: Select only the most important tables first
+                                """)
+                            else:
+                                st.markdown("""
+                                - **Reduce complexity**: Focus on 5-10 most important tables
+                                - **Split the work**: Generate instructions for groups of tables separately
+                                - **Simplify requirements**: Uncheck some advanced options
+                                - **Try again**: Sometimes the server is just busy
+                                """)
+                        else:
+                            st.error(f"❌ Error: {str(e)}")
         
         if state.data_prep_instructions:
             st.subheader("📋 Data Preparation Instructions")
