@@ -758,7 +758,7 @@ def call_api(endpoint, payload, timeout=120, max_retries=2):
 
 # ─── AI Vision Helper Functions ──────────────────────────────────────────────────
 def optimize_image_for_analysis(uploaded_file):
-    """Optimize image for faster AI analysis while maintaining quality"""
+    """Optimize image for faster AI analysis while maintaining quality for GPT-4o Vision"""
     from PIL import Image
     import io
     
@@ -771,11 +771,13 @@ def optimize_image_for_analysis(uploaded_file):
     
     # Get original dimensions
     width, height = image.size
+    original_size = len(uploaded_file.getvalue())
     
-    # Define max dimensions for analysis (balance between quality and speed)
-    max_dimension = 1536  # Good balance for AI vision
+    # For GPT-4o Vision, we can use higher resolution for better accuracy
+    # But need to balance with API speed and limits
+    max_dimension = 2048  # Increased for better AI vision analysis
     
-    # Resize if needed while maintaining aspect ratio
+    # Only resize if image is very large
     if max(width, height) > max_dimension:
         if width > height:
             new_width = max_dimension
@@ -786,11 +788,19 @@ def optimize_image_for_analysis(uploaded_file):
         
         image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
     
-    # Save to bytes with optimized quality
+    # Save to bytes with optimized settings
     img_byte_arr = io.BytesIO()
     
-    # Use JPEG with good quality/size balance
-    image.save(img_byte_arr, format='JPEG', quality=85, optimize=True)
+    # Use higher quality for AI Vision analysis - GPT-4o can handle larger images
+    # But compress if the file is very large
+    if original_size > 5 * 1024 * 1024:  # If original > 5MB
+        quality = 80  # More compression
+    elif original_size > 2 * 1024 * 1024:  # If original > 2MB  
+        quality = 85  # Moderate compression
+    else:
+        quality = 92  # High quality for smaller files
+    
+    image.save(img_byte_arr, format='JPEG', quality=quality, optimize=True)
     
     return img_byte_arr.getvalue()
 
@@ -829,16 +839,40 @@ def upload_and_analyze_image(uploaded_file, platform, analysis_type="ai_vision")
             files = {"file": (uploaded_file.name, optimized_file_data, uploaded_file.type)}
             data = {"platform": platform}
             
-            status_text.text("🧠 AI Vision analyzing layout...")
+            status_text.text("🧠 AI Vision analyzing layout... (This may take 2-5 minutes)")
             progress_bar.progress(50)
             
-            # Increased timeout and better error handling
-            response = requests.post(
-                f"{FASTAPI_URL}/analyze-image",
-                files=files,
-                data=data,
-                timeout=300  # Increased to 5 minutes
-            )
+            # Show helpful message while processing
+            processing_msg = st.info("💡 **AI Vision is working**: GPT-4o is carefully analyzing your wireframe. Complex images may take several minutes to process thoroughly.")
+            
+            # Increased timeout for AI Vision processing - allow up to 10 minutes
+            try:
+                response = requests.post(
+                    f"{FASTAPI_URL}/analyze-image",
+                    files=files,
+                    data=data,
+                    timeout=600  # Increased to 10 minutes for complex images
+                )
+                # Clear the processing message on success
+                processing_msg.empty()
+            except requests.exceptions.Timeout:
+                processing_msg.empty()
+                progress_bar.progress(100)
+                status_text.text("❌ Analysis timed out")
+                st.error("🕐 **AI Vision timed out.** This can happen with complex images. Please try:")
+                st.markdown("""
+                - **Use a simpler image**: Less detailed wireframes process faster
+                - **Try again**: Sometimes the AI service is busy
+                - **Check image quality**: Ensure the wireframe is clear and well-lit
+                - **Reduce image size**: Try resizing to 1024x768 or smaller
+                """)
+                return None
+            except requests.exceptions.RequestException as e:
+                processing_msg.empty()
+                progress_bar.progress(100)
+                status_text.text("❌ Connection error")
+                st.error(f"Connection error: {str(e)}")
+                return None
             
             progress_bar.progress(75)
             

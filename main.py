@@ -19,8 +19,12 @@ from PIL import Image
 # ─── Configuration ───────────────────────────────────────────────────────────────
 load_dotenv()
 
-# Initialize OpenAI client for v1.0+
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Initialize OpenAI client for v1.0+ with optimized timeout settings
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    timeout=600.0,  # 10 minutes global timeout for vision calls
+    max_retries=3   # Built-in retry for network issues
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -72,6 +76,34 @@ def create_optimized_openai_call(messages, max_tokens=2000, timeout=90):
     except Exception as e:
         logger.error(f"OpenAI API error: {str(e)}")
         raise HTTPException(500, f"AI service error: {str(e)}")
+
+def create_vision_call_with_retry(messages, max_tokens=2000, timeout=300, max_retries=2):
+    """Create GPT-4o Vision API call with retry logic for better reliability"""
+    import time
+    
+    for attempt in range(max_retries + 1):
+        try:
+            if attempt > 0:
+                wait_time = 10 + (attempt * 10)  # 10, 20 seconds wait
+                logger.info(f"Retrying vision API call in {wait_time} seconds... (Attempt {attempt + 1}/{max_retries + 1})")
+                time.sleep(wait_time)
+            
+            response = client.chat.completions.create(
+                model="gpt-4o",  # Latest and fastest vision model
+                messages=messages,
+                temperature=0.1,
+                max_tokens=max_tokens,
+                timeout=timeout,
+                # Add performance optimizations
+                stream=False  # Ensure we get the full response at once
+            )
+            return response.choices[0].message.content.strip()
+            
+        except Exception as e:
+            logger.error(f"Vision API attempt {attempt + 1} failed: {str(e)}")
+            if attempt == max_retries:  # Last attempt
+                raise HTTPException(500, f"Vision AI service failed after {max_retries + 1} attempts: {str(e)}")
+            continue
 
 # ─── Schemas ─────────────────────────────────────────────────────────────────────
 class Section(BaseModel):
@@ -631,6 +663,10 @@ async def analyze_dashboard_image(
         
         logger.info(f"Analyzing image: {file.filename}, size: {file_size} bytes, platform: {platform}")
         
+        # Choose model based on image complexity - GPT-4o for all images for best accuracy
+        # For very simple wireframes, could use gpt-4o-mini, but gpt-4o gives better results
+        model_to_use = "gpt-4o"  # Stick with best model for accuracy
+        
         # Create AI vision prompt
         system_msg = f"""You are an expert {platform} dashboard design analyst. Analyze the uploaded wireframe, sketch, or screenshot and provide a structured layout description.
 
@@ -654,31 +690,31 @@ Please provide:
 
 Be specific about positioning (top-left, center, bottom-right, etc.) and visual types."""
 
-        # Call GPT-4 Vision
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": system_msg},
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": user_msg},
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{base64_image}",
-                                "detail": "high"
-                            }
+        # Prepare messages for vision API call
+        vision_messages = [
+            {"role": "system", "content": system_msg},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": user_msg},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{base64_image}",
+                            "detail": "high"  # Keep high detail for accurate analysis
                         }
-                    ]
-                }
-            ],
-            max_tokens=1500,
-            temperature=0.2,
-            timeout=90
-        )
+                    }
+                ]
+            }
+        ]
         
-        layout_description = response.choices[0].message.content.strip()
+        # Call GPT-4o Vision with retry logic and increased timeout
+        layout_description = create_vision_call_with_retry(
+            messages=vision_messages,
+            max_tokens=2000,  # Increased for more detailed analysis
+            timeout=300,      # 5 minutes timeout
+            max_retries=2     # 3 total attempts
+        )
         
         logger.info(f"AI Vision analysis completed for {file.filename}")
         
