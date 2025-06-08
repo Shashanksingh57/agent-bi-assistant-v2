@@ -1,0 +1,181 @@
+{
+  "test_scenarios": [
+    {
+      "scenario_name": "Generate Data Model from SQL DDL",
+      "endpoint": "/api/v1/generate-model",
+      "method": "POST",
+      "description": "Convert SQL DDL to JSON schema format",
+      "request_body": {
+        "sql_ddl": "CREATE TABLE sales_transactions (\n  transaction_id VARCHAR(50) PRIMARY KEY,\n  transaction_date DATE NOT NULL,\n  product_id VARCHAR(50) NOT NULL,\n  customer_id VARCHAR(50) NOT NULL,\n  store_id VARCHAR(50) NOT NULL,\n  quantity_sold INTEGER NOT NULL,\n  unit_price DECIMAL(10,2) NOT NULL,\n  total_revenue DECIMAL(12,2) NOT NULL,\n  cost_of_goods DECIMAL(12,2) NOT NULL,\n  gross_profit DECIMAL(12,2) NOT NULL,\n  discount_amount DECIMAL(10,2) DEFAULT 0,\n  promotion_id VARCHAR(50),\n  FOREIGN KEY (product_id) REFERENCES products(product_id),\n  FOREIGN KEY (customer_id) REFERENCES customers(customer_id),\n  FOREIGN KEY (store_id) REFERENCES stores(store_id)\n);"
+      },
+      "expected_response": {
+        "status": 200,
+        "contains": ["tables", "columns", "relationships", "data_type", "nullable"]
+      }
+    },
+    {
+      "scenario_name": "Analyze Wireframe Image",
+      "endpoint": "/api/v1/analyze-image",
+      "method": "POST",
+      "description": "Extract layout from wireframe image using GPT-4 Vision",
+      "request_files": {
+        "file": "sample_wireframe.png"
+      },
+      "request_body": {
+        "prompt": "Analyze this sales dashboard wireframe and identify the layout structure, components, and KPI placements"
+      },
+      "expected_response": {
+        "status": 200,
+        "contains": ["analysis", "components", "layout", "charts"]
+      }
+    },
+    {
+      "scenario_name": "Generate Dashboard Layout - Text Description",
+      "endpoint": "/api/v1/generate-layout",
+      "method": "POST",
+      "description": "Generate implementation instructions from text wireframe",
+      "request_body": {
+        "data_model": "{JSON schema from test case}",
+        "kpis": "{KPI definitions from test case}",
+        "wireframe_description": "Dashboard with 3 KPI cards at top showing Revenue, Profit, and Tons Moved. Below that, a line chart showing trends over time. Bottom section has 3 columns: pie chart for category breakdown, bar chart for top products, and a data table with detailed metrics.",
+        "target_platform": "Tableau"
+      },
+      "expected_response": {
+        "status": 200,
+        "contains": ["layout_instructions", "components", "data_preparation", "implementation_steps"]
+      }
+    },
+    {
+      "scenario_name": "Generate Dashboard Layout - With Image",
+      "endpoint": "/api/v1/generate-layout",
+      "method": "POST",
+      "description": "Generate implementation from wireframe image",
+      "request_files": {
+        "wireframe_image": "sample_wireframe.png"
+      },
+      "request_body": {
+        "data_model": "{JSON schema from test case}",
+        "kpis": "{KPI definitions from test case}",
+        "target_platform": "PowerBI"
+      },
+      "expected_response": {
+        "status": 200,
+        "contains": ["layout_instructions", "image_analysis", "components", "powerbi_specific"]
+      }
+    },
+    {
+      "scenario_name": "Generate Sprint Backlog",
+      "endpoint": "/api/v1/generate-sprint",
+      "method": "POST",
+      "description": "Convert layout instructions to sprint stories",
+      "request_body": {
+        "layout_instructions": "{Generated layout instructions from previous test}",
+        "team_size": 3,
+        "sprint_duration": 2,
+        "tech_stack": ["Tableau", "SQL Server", "Python"]
+      },
+      "expected_response": {
+        "status": 200,
+        "contains": ["stories", "story_points", "priority", "acceptance_criteria", "sprint_plan"]
+      }
+    },
+    {
+      "scenario_name": "End-to-End Workflow Test",
+      "endpoint": "Multiple",
+      "method": "Multiple",
+      "description": "Complete workflow from SQL to sprint planning",
+      "test_steps": [
+        {
+          "step": 1,
+          "action": "Upload SQL DDL",
+          "endpoint": "/api/v1/generate-model",
+          "verify": "JSON schema generated"
+        },
+        {
+          "step": 2,
+          "action": "Submit wireframe and generate layout",
+          "endpoint": "/api/v1/generate-layout",
+          "verify": "Detailed instructions generated"
+        },
+        {
+          "step": 3,
+          "action": "Generate sprint backlog",
+          "endpoint": "/api/v1/generate-sprint",
+          "verify": "User stories created"
+        }
+      ]
+    },
+    {
+      "scenario_name": "Error Handling - Invalid Authentication",
+      "endpoint": "/api/v1/generate-layout",
+      "method": "POST",
+      "description": "Test API authentication",
+      "headers": {
+        "Authorization": "Bearer invalid_token"
+      },
+      "expected_response": {
+        "status": 401,
+        "error": "Invalid authentication credentials"
+      }
+    },
+    {
+      "scenario_name": "Error Handling - Missing Required Fields",
+      "endpoint": "/api/v1/generate-layout",
+      "method": "POST",
+      "description": "Test validation for missing fields",
+      "request_body": {
+        "data_model": "{JSON schema}"
+      },
+      "expected_response": {
+        "status": 422,
+        "contains": ["validation_error", "required", "kpis"]
+      }
+    },
+    {
+      "scenario_name": "Platform-Specific Generation Test",
+      "endpoint": "/api/v1/generate-layout",
+      "method": "POST",
+      "description": "Test different BI platform outputs",
+      "test_platforms": ["Tableau", "PowerBI", "Looker", "QuickSight"],
+      "request_body_template": {
+        "data_model": "{JSON schema}",
+        "kpis": "{KPI definitions}",
+        "wireframe_description": "{Wireframe text}",
+        "target_platform": "{PLATFORM}"
+      },
+      "verify_each": "Platform-specific instructions and best practices"
+    },
+    {
+      "scenario_name": "Large Data Model Test",
+      "endpoint": "/api/v1/generate-model",
+      "method": "POST",
+      "description": "Test chunking for large SQL schemas",
+      "request_body": {
+        "sql_ddl": "{SQL DDL with 20+ tables and 200+ columns}"
+      },
+      "expected_response": {
+        "status": 200,
+        "verify": "All tables and relationships captured correctly"
+      }
+    }
+  ],
+  "test_data_files": {
+    "sample_wireframe.png": "Binary image file with hand-drawn dashboard layout",
+    "complex_sql_schema.sql": "Large SQL DDL file for stress testing",
+    "expected_outputs": {
+      "tableau_output.json": "Expected Tableau instructions",
+      "powerbi_output.json": "Expected PowerBI instructions",
+      "sprint_stories.json": "Expected sprint backlog format"
+    }
+  },
+  "authentication": {
+    "valid_token": "supersecrettoken123",
+    "header_format": "Authorization: Bearer {token}"
+  },
+  "performance_benchmarks": {
+    "generate_model": "< 2 seconds for 10 tables",
+    "analyze_image": "< 5 seconds for 1MB image",
+    "generate_layout": "< 10 seconds for complete instructions",
+    "generate_sprint": "< 3 seconds for backlog generation"
+  }
+}

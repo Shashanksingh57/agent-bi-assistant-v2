@@ -1,0 +1,141 @@
+{
+  "kpi_definitions": [
+    {
+      "kpi_name": "Total Revenue",
+      "description": "Total sales revenue across all products and customers",
+      "calculation": "SUM(sales_transactions.total_revenue)",
+      "unit": "USD",
+      "category": "Financial",
+      "aggregation_levels": ["Daily", "Weekly", "Monthly", "Quarterly", "Yearly"],
+      "filters": ["Date Range", "Product Category", "Customer Segment", "Region", "Store Type"],
+      "target_type": "Growth",
+      "typical_target": "+10% YoY"
+    },
+    {
+      "kpi_name": "Gross Profit",
+      "description": "Total profit after deducting cost of goods sold",
+      "calculation": "SUM(sales_transactions.gross_profit)",
+      "unit": "USD",
+      "category": "Financial",
+      "aggregation_levels": ["Daily", "Weekly", "Monthly", "Quarterly", "Yearly"],
+      "filters": ["Date Range", "Product Category", "Customer Segment", "Region", "Store Type"],
+      "target_type": "Margin",
+      "typical_target": "35% of Revenue"
+    },
+    {
+      "kpi_name": "Gross Profit Margin",
+      "description": "Profit margin as percentage of revenue",
+      "calculation": "(SUM(sales_transactions.gross_profit) / SUM(sales_transactions.total_revenue)) * 100",
+      "unit": "Percentage",
+      "category": "Financial",
+      "aggregation_levels": ["Daily", "Weekly", "Monthly", "Quarterly", "Yearly"],
+      "filters": ["Date Range", "Product Category", "Customer Segment", "Region", "Store Type"],
+      "target_type": "Efficiency",
+      "typical_target": "35%"
+    },
+    {
+      "kpi_name": "Total Tons Moved",
+      "description": "Total weight of products sold and moved through logistics",
+      "calculation": "SUM(inventory_movements.weight_tons) WHERE movement_type = 'Outbound'",
+      "unit": "Metric Tons",
+      "category": "Operational",
+      "aggregation_levels": ["Daily", "Weekly", "Monthly", "Quarterly", "Yearly"],
+      "filters": ["Date Range", "Product Category", "Origin Location", "Destination Location"],
+      "target_type": "Volume",
+      "typical_target": "+5% YoY"
+    },
+    {
+      "kpi_name": "Revenue per Ton",
+      "description": "Average revenue generated per metric ton of product sold",
+      "calculation": "SUM(sales_transactions.total_revenue) / SUM(products.unit_weight_kg * sales_transactions.quantity_sold / 1000)",
+      "unit": "USD/Ton",
+      "category": "Efficiency",
+      "aggregation_levels": ["Monthly", "Quarterly", "Yearly"],
+      "filters": ["Date Range", "Product Category", "Customer Segment"],
+      "target_type": "Efficiency",
+      "typical_target": "$2,500/ton"
+    },
+    {
+      "kpi_name": "Units Sold",
+      "description": "Total number of product units sold",
+      "calculation": "SUM(sales_transactions.quantity_sold)",
+      "unit": "Units",
+      "category": "Volume",
+      "aggregation_levels": ["Daily", "Weekly", "Monthly", "Quarterly", "Yearly"],
+      "filters": ["Date Range", "Product Category", "Brand", "Customer Type", "Store Type"],
+      "target_type": "Volume",
+      "typical_target": "+8% YoY"
+    },
+    {
+      "kpi_name": "Average Order Value",
+      "description": "Average revenue per transaction",
+      "calculation": "AVG(sales_transactions.total_revenue)",
+      "unit": "USD",
+      "category": "Financial",
+      "aggregation_levels": ["Daily", "Weekly", "Monthly"],
+      "filters": ["Date Range", "Customer Segment", "Store Type"],
+      "target_type": "Growth",
+      "typical_target": "$450"
+    },
+    {
+      "kpi_name": "Customer Count",
+      "description": "Number of unique customers with transactions",
+      "calculation": "COUNT(DISTINCT sales_transactions.customer_id)",
+      "unit": "Customers",
+      "category": "Customer",
+      "aggregation_levels": ["Monthly", "Quarterly", "Yearly"],
+      "filters": ["Date Range", "Customer Type", "Region"],
+      "target_type": "Growth",
+      "typical_target": "+3% QoQ"
+    },
+    {
+      "kpi_name": "Product Performance Index",
+      "description": "Composite score of product revenue, profit margin, and volume",
+      "calculation": "WEIGHTED_AVG(revenue_growth * 0.4 + profit_margin * 0.4 + volume_growth * 0.2)",
+      "unit": "Index (0-100)",
+      "category": "Performance",
+      "aggregation_levels": ["Monthly", "Quarterly"],
+      "filters": ["Product Category", "Brand"],
+      "target_type": "Score",
+      "typical_target": ">75"
+    },
+    {
+      "kpi_name": "Inventory Turnover",
+      "description": "Rate at which inventory is sold and replaced",
+      "calculation": "SUM(sales_transactions.quantity_sold) / AVG(inventory_on_hand)",
+      "unit": "Times",
+      "category": "Efficiency",
+      "aggregation_levels": ["Monthly", "Quarterly", "Yearly"],
+      "filters": ["Product Category", "Store Type"],
+      "target_type": "Efficiency",
+      "typical_target": "12x per year"
+    }
+  ],
+  "kpi_categories": [
+    {
+      "category": "Financial",
+      "description": "Revenue, profit, and monetary metrics",
+      "color": "#2ECC71"
+    },
+    {
+      "category": "Operational",
+      "description": "Volume, logistics, and movement metrics",
+      "color": "#3498DB"
+    },
+    {
+      "category": "Efficiency",
+      "description": "Productivity and optimization metrics",
+      "color": "#F39C12"
+    },
+    {
+      "category": "Customer",
+      "description": "Customer-related metrics",
+      "color": "#9B59B6"
+    },
+    {
+      "category": "Performance",
+      "description": "Composite and indexed metrics",
+      "color": "#E74C3C"
+    }
+  ]
+}

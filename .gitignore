@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Streamlit & FastAPI
+.env
+*.log
+
+# MacOS system files
+.DS_Store

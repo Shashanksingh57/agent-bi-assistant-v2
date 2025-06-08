@@ -1,0 +1,43 @@
+Table,Field,Data Type,Description,Business Definition,Example Values,Business Rules
+sales_transactions,transaction_id,string,Unique identifier for each transaction,System-generated ID for tracking individual sales events,TXN-2024-001234,Must be unique across system
+sales_transactions,transaction_date,date,Date of the sales transaction,Calendar date when the sale occurred,2024-01-15,Cannot be future dated
+sales_transactions,product_id,string,Reference to product sold,Links to product master to identify what was sold,PRD-BEVERAGE-001,Must exist in products table
+sales_transactions,customer_id,string,Reference to customer,Identifies the buyer organization,CUST-WALMART-001,Must exist in customers table
+sales_transactions,store_id,string,Reference to store location,Physical location where sale occurred,STR-NYC-001,Must exist in stores table
+sales_transactions,quantity_sold,integer,Number of units sold,Count of individual items in the transaction,24,Must be greater than 0
+sales_transactions,unit_price,decimal,Price per unit at time of sale,Selling price per item including any negotiated rates,$3.99,Must be greater than 0
+sales_transactions,total_revenue,decimal,Total revenue for the transaction,Calculated as quantity_sold × unit_price,$95.76,Auto-calculated field
+sales_transactions,cost_of_goods,decimal,Total cost of goods sold,Manufacturing/procurement cost for items sold,$62.40,Used for margin calculations
+sales_transactions,gross_profit,decimal,Gross profit (revenue - cost),Direct profit before operating expenses,$33.36,Auto-calculated field
+sales_transactions,discount_amount,decimal,Discount applied to transaction,Promotional or volume discounts given,$5.00,Default 0 if no discount
+sales_transactions,promotion_id,string,Reference to active promotion,Links to promotion campaigns if applicable,PROMO-SUMMER-2024,Nullable field
+products,product_id,string,Unique product identifier,System ID for each SKU in catalog,PRD-BEVERAGE-001,Primary key
+products,product_name,string,Product name,Consumer-facing product description,Sparkling Water 12oz,Required field
+products,category,string,Product category,High-level product grouping,"Beverages, Snacks, Dairy",Used for analysis
+products,subcategory,string,Product subcategory,Detailed product classification,"Carbonated, Chips, Yogurt",Optional refinement
+products,brand,string,Product brand,Manufacturer or house brand name,"CocaCola, Pepsi, Store Brand",Required field
+products,unit_weight_kg,decimal,Weight per unit in kilograms,Individual item weight for logistics,0.355,Used for tonnage calculations
+products,units_per_case,integer,Number of units per case,Standard packaging quantity,24,For case-level ordering
+products,list_price,decimal,Standard list price,MSRP or standard shelf price,$4.99,Before any discounts
+products,unit_cost,decimal,Cost per unit,Procurement or manufacturing cost,$3.25,For margin calculations
+customers,customer_id,string,Unique customer identifier,System ID for each customer account,CUST-WALMART-001,Primary key
+customers,customer_name,string,Customer business name,Legal business entity name,Walmart Inc.,Required field
+customers,customer_type,string,Type of customer,Business model classification,"Retailer, Distributor, Direct",Determines pricing tiers
+customers,segment,string,Customer segment,Size and channel classification,"Large Chain, Independent, Online",For targeted strategies
+customers,region,string,Geographic region,Primary operating region,"Northeast, Southeast, West",For regional analysis
+customers,account_manager,string,Assigned account manager,Sales rep responsible for account,John Smith,For relationship management
+stores,store_id,string,Unique store identifier,System ID for each location,STR-NYC-001,Primary key
+stores,store_name,string,Store name,Public-facing store identification,Walmart Supercenter #5421,Required field
+stores,city,string,Store city,Municipality location,New York,Required field
+stores,state,string,Store state/province,State or province code,NY,Two-letter code
+stores,country,string,Store country,Country code,USA,ISO country code
+stores,store_type,string,Type of store,Retail format classification,"Supermarket, Convenience, Warehouse",Affects product mix
+stores,store_size_sqft,integer,Store size in square feet,Total retail floor space,125000,For capacity planning
+inventory_movements,movement_id,string,Unique movement identifier,System ID for tracking shipments,MOV-2024-001234,Primary key
+inventory_movements,movement_date,date,Date of inventory movement,When products were shipped/received,2024-01-15,For logistics tracking
+inventory_movements,product_id,string,Reference to product,What product was moved,PRD-BEVERAGE-001,Links to products table
+inventory_movements,from_location,string,Origin location,Where shipment originated,"DC-EAST, STR-NYC-001",For route planning
+inventory_movements,to_location,string,Destination location,Where shipment was delivered,"STR-NYC-001, CUST-001",For delivery tracking
+inventory_movements,quantity_moved,integer,Number of units moved,Count of items in shipment,480,Must be greater than 0
+inventory_movements,weight_tons,decimal,Total weight in metric tons,Calculated weight for logistics,0.170,For capacity planning
+inventory_movements,movement_type,string,Type of movement,Classification of logistics activity,"Inbound, Outbound, Transfer",For flow analysis

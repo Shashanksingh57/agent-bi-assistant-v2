@@ -1,0 +1,95 @@
+RETAIL/CPG SALES DASHBOARD WIREFRAME DESCRIPTION
+================================================
+
+Dashboard Title: Sales Performance Overview
+Time Period Selector: [Daily | Weekly | Monthly | Quarterly | YTD] with date range picker
+
+LAYOUT: 4 Rows x 3 Columns Grid
+
+ROW 1 - KEY METRICS CARDS (Full Width)
+---------------------------------------
+[Card 1: Total Revenue]
+- Large number display: $12.5M
+- Trend indicator: ↑ +12.3% vs Last Period
+- Sparkline showing last 7 periods
+- Green background if positive, red if negative
+
+[Card 2: Gross Profit]
+- Large number display: $4.4M
+- Profit Margin %: 35.2%
+- Trend indicator: ↑ +8.7% vs Last Period
+- Mini bar chart showing margin trend
+
+[Card 3: Tons Moved]
+- Large number display: 2,847 MT
+- Trend indicator: ↑ +5.2% vs Last Period
+- Efficiency metric: $4,395/ton
+- Volume gauge chart (0-5000 scale)
+
+ROW 2 - TREND ANALYSIS (Full Width)
+------------------------------------
+[Combined Line Chart]
+- Title: Revenue, Profit & Volume Trends
+- X-axis: Time periods (last 12 months)
+- Y-axis 1 (left): Revenue & Profit ($)
+- Y-axis 2 (right): Tons Moved
+- Three lines: Revenue (blue), Profit (green), Tons (orange)
+- Interactive tooltip showing all values on hover
+- Option to toggle between absolute and % change view
+
+ROW 3 - PERFORMANCE BREAKDOWN (3 Columns)
+-----------------------------------------
+[Column 1: Revenue by Category]
+- Donut chart with legend
+- Categories: Beverages (45%), Snacks (30%), Dairy (25%)
+- Click to drill down to subcategories
+- Show $ and % for each segment
+
+[Column 2: Top 10 Products]
+- Horizontal bar chart
+- Product names on Y-axis
+- Revenue on X-axis
+- Color coding by profit margin (gradient)
+- Show exact values on hover
+
+[Column 3: Regional Performance]
+- Heat map or filled map
+- Regions colored by revenue intensity
+- Click region for detailed metrics
+- Legend showing revenue ranges
+
+ROW 4 - DETAILED ANALYTICS (3 Columns)
+---------------------------------------
+[Column 1: Customer Segment Analysis]
+- Stacked bar chart
+- Segments: Large Chains, Independent, Online
+- Show revenue and profit for each
+- Period-over-period comparison
+
+[Column 2: Store Type Performance]
+- Bubble chart
+- X-axis: Number of stores
+- Y-axis: Average revenue per store
+- Bubble size: Total tons moved
+- Color by store type
+
+[Column 3: Operational Metrics Table]
+- Inventory Turnover: 12.5x
+- Avg Order Value: $487
+- Active Customers: 1,234
+- Products per Order: 18.7
+- Fill Rate: 96.8%
+
+INTERACTIVE FEATURES:
+- Filter Panel (collapsible): Product Category, Region, Customer Type, Store Type, Brand
+- Export buttons: PDF, Excel, PNG
+- Refresh indicator with last update timestamp
+- Drill-down capability on all charts
+- Responsive design for tablet/mobile viewing
+
+COLOR SCHEME:
+- Primary: #0C62FB (Blue)
+- Success: #2ECC71 (Green)
+- Warning: #F39C12 (Orange)
+- Danger: #E74C3C (Red)
+- Neutral: #95A5A6 (Gray)

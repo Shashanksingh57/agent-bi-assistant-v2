@@ -1,0 +1,345 @@
+{
+  "schema_name": "retail_cpg_sales",
+  "schema_version": "1.0",
+  "tables": [
+    {
+      "table_name": "sales_transactions",
+      "description": "Daily sales transaction data",
+      "columns": [
+        {
+          "column_name": "transaction_id",
+          "data_type": "string",
+          "primary_key": true,
+          "nullable": false,
+          "description": "Unique identifier for each transaction"
+        },
+        {
+          "column_name": "transaction_date",
+          "data_type": "date",
+          "nullable": false,
+          "description": "Date of the sales transaction"
+        },
+        {
+          "column_name": "product_id",
+          "data_type": "string",
+          "nullable": false,
+          "foreign_key": "products.product_id",
+          "description": "Reference to product sold"
+        },
+        {
+          "column_name": "customer_id",
+          "data_type": "string",
+          "nullable": false,
+          "foreign_key": "customers.customer_id",
+          "description": "Reference to customer"
+        },
+        {
+          "column_name": "store_id",
+          "data_type": "string",
+          "nullable": false,
+          "foreign_key": "stores.store_id",
+          "description": "Reference to store location"
+        },
+        {
+          "column_name": "quantity_sold",
+          "data_type": "integer",
+          "nullable": false,
+          "description": "Number of units sold"
+        },
+        {
+          "column_name": "unit_price",
+          "data_type": "decimal",
+          "precision": 10,
+          "scale": 2,
+          "nullable": false,
+          "description": "Price per unit at time of sale"
+        },
+        {
+          "column_name": "total_revenue",
+          "data_type": "decimal",
+          "precision": 12,
+          "scale": 2,
+          "nullable": false,
+          "description": "Total revenue for the transaction"
+        },
+        {
+          "column_name": "cost_of_goods",
+          "data_type": "decimal",
+          "precision": 12,
+          "scale": 2,
+          "nullable": false,
+          "description": "Total cost of goods sold"
+        },
+        {
+          "column_name": "gross_profit",
+          "data_type": "decimal",
+          "precision": 12,
+          "scale": 2,
+          "nullable": false,
+          "description": "Gross profit (revenue - cost)"
+        },
+        {
+          "column_name": "discount_amount",
+          "data_type": "decimal",
+          "precision": 10,
+          "scale": 2,
+          "default": 0,
+          "description": "Discount applied to transaction"
+        },
+        {
+          "column_name": "promotion_id",
+          "data_type": "string",
+          "nullable": true,
+          "description": "Reference to active promotion"
+        }
+      ]
+    },
+    {
+      "table_name": "products",
+      "description": "Product master data",
+      "columns": [
+        {
+          "column_name": "product_id",
+          "data_type": "string",
+          "primary_key": true,
+          "nullable": false,
+          "description": "Unique product identifier"
+        },
+        {
+          "column_name": "product_name",
+          "data_type": "string",
+          "nullable": false,
+          "description": "Product name"
+        },
+        {
+          "column_name": "category",
+          "data_type": "string",
+          "nullable": false,
+          "description": "Product category"
+        },
+        {
+          "column_name": "subcategory",
+          "data_type": "string",
+          "nullable": true,
+          "description": "Product subcategory"
+        },
+        {
+          "column_name": "brand",
+          "data_type": "string",
+          "nullable": false,
+          "description": "Product brand"
+        },
+        {
+          "column_name": "unit_weight_kg",
+          "data_type": "decimal",
+          "precision": 8,
+          "scale": 3,
+          "nullable": false,
+          "description": "Weight per unit in kilograms"
+        },
+        {
+          "column_name": "units_per_case",
+          "data_type": "integer",
+          "nullable": false,
+          "description": "Number of units per case"
+        },
+        {
+          "column_name": "list_price",
+          "data_type": "decimal",
+          "precision": 10,
+          "scale": 2,
+          "nullable": false,
+          "description": "Standard list price"
+        },
+        {
+          "column_name": "unit_cost",
+          "data_type": "decimal",
+          "precision": 10,
+          "scale": 2,
+          "nullable": false,
+          "description": "Cost per unit"
+        }
+      ]
+    },
+    {
+      "table_name": "customers",
+      "description": "Customer master data",
+      "columns": [
+        {
+          "column_name": "customer_id",
+          "data_type": "string",
+          "primary_key": true,
+          "nullable": false,
+          "description": "Unique customer identifier"
+        },
+        {
+          "column_name": "customer_name",
+          "data_type": "string",
+          "nullable": false,
+          "description": "Customer business name"
+        },
+        {
+          "column_name": "customer_type",
+          "data_type": "string",
+          "nullable": false,
+          "description": "Type of customer (Retailer, Distributor, Direct)"
+        },
+        {
+          "column_name": "segment",
+          "data_type": "string",
+          "nullable": false,
+          "description": "Customer segment (Large Chain, Independent, Online)"
+        },
+        {
+          "column_name": "region",
+          "data_type": "string",
+          "nullable": false,
+          "description": "Geographic region"
+        },
+        {
+          "column_name": "account_manager",
+          "data_type": "string",
+          "nullable": true,
+          "description": "Assigned account manager"
+        }
+      ]
+    },
+    {
+      "table_name": "stores",
+      "description": "Store location data",
+      "columns": [
+        {
+          "column_name": "store_id",
+          "data_type": "string",
+          "primary_key": true,
+          "nullable": false,
+          "description": "Unique store identifier"
+        },
+        {
+          "column_name": "store_name",
+          "data_type": "string",
+          "nullable": false,
+          "description": "Store name"
+        },
+        {
+          "column_name": "city",
+          "data_type": "string",
+          "nullable": false,
+          "description": "Store city"
+        },
+        {
+          "column_name": "state",
+          "data_type": "string",
+          "nullable": false,
+          "description": "Store state/province"
+        },
+        {
+          "column_name": "country",
+          "data_type": "string",
+          "nullable": false,
+          "description": "Store country"
+        },
+        {
+          "column_name": "store_type",
+          "data_type": "string",
+          "nullable": false,
+          "description": "Type of store (Supermarket, Convenience, Warehouse)"
+        },
+        {
+          "column_name": "store_size_sqft",
+          "data_type": "integer",
+          "nullable": true,
+          "description": "Store size in square feet"
+        }
+      ]
+    },
+    {
+      "table_name": "inventory_movements",
+      "description": "Product movement and logistics data",
+      "columns": [
+        {
+          "column_name": "movement_id",
+          "data_type": "string",
+          "primary_key": true,
+          "nullable": false,
+          "description": "Unique movement identifier"
+        },
+        {
+          "column_name": "movement_date",
+          "data_type": "date",
+          "nullable": false,
+          "description": "Date of inventory movement"
+        },
+        {
+          "column_name": "product_id",
+          "data_type": "string",
+          "nullable": false,
+          "foreign_key": "products.product_id",
+          "description": "Reference to product"
+        },
+        {
+          "column_name": "from_location",
+          "data_type": "string",
+          "nullable": false,
+          "description": "Origin location (warehouse/store)"
+        },
+        {
+          "column_name": "to_location",
+          "data_type": "string",
+          "nullable": false,
+          "description": "Destination location"
+        },
+        {
+          "column_name": "quantity_moved",
+          "data_type": "integer",
+          "nullable": false,
+          "description": "Number of units moved"
+        },
+        {
+          "column_name": "weight_tons",
+          "data_type": "decimal",
+          "precision": 10,
+          "scale": 3,
+          "nullable": false,
+          "description": "Total weight moved in metric tons"
+        },
+        {
+          "column_name": "movement_type",
+          "data_type": "string",
+          "nullable": false,
+          "description": "Type of movement (Inbound, Outbound, Transfer)"
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "from_table": "sales_transactions",
+      "from_column": "product_id",
+      "to_table": "products",
+      "to_column": "product_id",
+      "relationship_type": "many-to-one"
+    },
+    {
+      "from_table": "sales_transactions",
+      "from_column": "customer_id",
+      "to_table": "customers",
+      "to_column": "customer_id",
+      "relationship_type": "many-to-one"
+    },
+    {
+      "from_table": "sales_transactions",
+      "from_column": "store_id",
+      "to_table": "stores",
+      "to_column": "store_id",
+      "relationship_type": "many-to-one"
+    },
+    {
+      "from_table": "inventory_movements",
+      "from_column": "product_id",
+      "to_table": "products",
+      "to_column": "product_id",
+      "relationship_type": "many-to-one"
+    }
+  ]
+}
