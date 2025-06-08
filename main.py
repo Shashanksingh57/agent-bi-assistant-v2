@@ -712,7 +712,7 @@ Be specific about positioning (top-left, center, bottom-right, etc.) and visual 
         layout_description = create_vision_call_with_retry(
             messages=vision_messages,
             max_tokens=2000,  # Increased for more detailed analysis
-            timeout=300000,      # 15 minutes timeout (was working before)
+            timeout=900,      # 15 minutes timeout - matches other vision calls
             max_retries=2     # 3 total attempts
         )
         
@@ -930,7 +930,7 @@ Extract all performance indicators, metrics, and KPIs mentioned. Include formula
                 {"role": "user", "content": user_msg}
             ],
             max_tokens=2000,
-            timeout=30000
+            timeout=600
         )
         
         # Clean and parse response
@@ -1023,7 +1023,7 @@ Extract all data fields, tables, and business rules mentioned. Include data type
                 {"role": "user", "content": user_msg}
             ],
             max_tokens=2000,
-            timeout=30000
+            timeout=600
         )
         
         # Clean and parse response
@@ -1327,7 +1327,7 @@ Format: {{"tables": [{{"name": "table", "columns": [{{"name": "col", "type": "st
             {"role": "user", "content": f"Tables:\n{combined_ddl}"}
         ],
         max_tokens=2000,
-        timeout=3000
+        timeout=600
     )
     
     # Clean and parse
@@ -1351,7 +1351,7 @@ async def process_relationships_only(relationships_sql):
             {"role": "user", "content": relationships_sql}
         ],
         max_tokens=800,
-        timeout=300
+        timeout=600
     )
     
     content = content.strip()
@@ -1438,7 +1438,7 @@ async def generate_layout(req: GenerateRequest):
                         {"role": "user", "content": enhanced_prompt}
                     ],
                     max_tokens=2500,  # Reduced to speed up response
-                    timeout=30000
+                    timeout=600
                 )
             except Exception as openai_error:
                 logger.error(f"OpenAI timeout or error: {str(openai_error)}")
@@ -1639,7 +1639,7 @@ async def generate_sprint(req: SprintRequest):
                     {"role":"user","content":user_msg}
                 ],
                 max_tokens=1200,
-                timeout=3000
+                timeout=600
             )
         except Exception as e:
             raise HTTPException(500, f"Sprint generation failed: {str(e)}")
@@ -1675,7 +1675,7 @@ async def test_simple():
             model="gpt-4",
             messages=[{"role": "user", "content": "Say hello in 5 words"}],
             max_tokens=50,
-            timeout=300
+            timeout=600
         )
         return {"status": "success", "response": response.choices[0].message.content}
     except Exception as e:

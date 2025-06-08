@@ -840,11 +840,11 @@ def upload_and_analyze_image(uploaded_file, platform, analysis_type="ai_vision")
             files = {"file": (uploaded_file.name, optimized_file_data, uploaded_file.type)}
             data = {"platform": platform}
             
-            status_text.text("🧠 AI Vision analyzing layout... (This may take 5-15 minutes)")
+            status_text.text("🧠 AI Vision analyzing layout... (This may take up to 15 minutes)")
             progress_bar.progress(50)
             
             # Show helpful message while processing
-            processing_msg = st.info("💡 **AI Vision is working**: GPT-4o is carefully analyzing your wireframe. Complex images may take up to 15 minutes - please be patient!")
+            processing_msg = st.info("💡 **AI Vision is working**: GPT-4o is carefully analyzing your wireframe. Processing may take up to 15 minutes - please be patient!")
             
             # Much longer timeout for AI Vision processing - revert to working timeouts
             try:
@@ -914,7 +914,7 @@ def upload_and_analyze_image(uploaded_file, platform, analysis_type="ai_vision")
             response = requests.post(
                 f"{FASTAPI_URL}/detect-layout",
                 files=files,
-                timeout=300
+                timeout=600  # 10 minutes - matches backend
             )
             
             progress_bar.progress(100)
@@ -1118,9 +1118,9 @@ CREATE TABLE customers (
                 progress_bar = st.progress(0)
                 status_text = st.empty()
                 
-                base_timeout = 300  # Start with 5 minutes
+                base_timeout = 600  # Start with 10 minutes - matches backend simple model
                 size_factor = max(1, total_size // 10000)
-                dynamic_timeout = min(900, base_timeout + (size_factor * 60))  # Max 15 minutes
+                dynamic_timeout = min(900, base_timeout + (size_factor * 60))  # Max 15 minutes - matches backend complex model
                 
                 try:
                     status_text.text(f"🔄 Processing {len(ddl_files)} DDL files... (Est. {est_time})")
@@ -1283,7 +1283,7 @@ The AI will extract structured KPI definitions from your notes.""",
                             # Call the API to parse unstructured KPIs
                             response = call_api("parse-unstructured-kpis", {
                                 "notes_text": st.session_state.kpi_text_input
-                            }, timeout=600)
+                            }, timeout=600)  # 10 minutes - matches backend simple model timeout
                             
                             if response and "kpi_list" in response:
                                 kpi_list = response["kpi_list"]
@@ -1430,7 +1430,7 @@ The AI will structure this into a proper data dictionary format.""",
                             response = call_api("parse-unstructured-dictionary", {
                                 "notes_text": st.session_state.dict_text_input,
                                 "table_context": table_context
-                            }, timeout=600)
+                            }, timeout=600)  # 10 minutes - matches backend simple model timeout
                             
                             if response and "data_dictionary" in response:
                                 data_dict = response["data_dictionary"]
@@ -1789,7 +1789,7 @@ Keep instructions specific to these tables only.
                         
                         try:
                             # Use longer timeout for chunks and no retries (was working before)
-                            resp = call_api("generate-layout", chunk_payload, timeout=600, max_retries=0)  # 10 minutes per chunk, no retries
+                            resp = call_api("generate-layout", chunk_payload, timeout=720, max_retries=0)  # 12 minutes per chunk - matches backend medium complexity
                             chunk_instructions = resp.get("layout_instructions", "")
                             
                             if chunk_instructions:
@@ -1980,13 +1980,13 @@ Provide comprehensive data preparation instructions with:
                         
                         st.info("💡 Applying light optimization for better processing...")
                     
-                    # Much more generous timeout strategy - revert to working timeouts
+                    # Frontend timeouts match backend exactly
                     if is_very_complex:
-                        timeout = 900  # 15 minutes for very complex (was working before)
+                        timeout = 900  # 15 minutes for very complex - matches backend
                     elif is_complex:
-                        timeout = 720  # 12 minutes for complex (was working before)
+                        timeout = 720  # 12 minutes for complex - matches backend
                     else:
-                        timeout = 600  # 10 minutes for normal (was working before)
+                        timeout = 600  # 10 minutes for normal - matches backend
                     
                     try:
                         progress_placeholder.text("🤖 Generating AI-powered instructions...")
