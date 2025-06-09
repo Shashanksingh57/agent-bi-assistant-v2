@@ -1635,9 +1635,38 @@ Please try again or contact support if the issue persists.
                 wireframe_json=result.get("wireframe_json",""),
                 layout_instructions=instr
             )
-        except Exception:
-            # Fallback: raw response tidied
-            return GenerateResponse(wireframe_json="", layout_instructions=tidy_md(content))
+        except Exception as parse_error:
+            logger.warning(f"Failed to parse AI response as JSON: {str(parse_error)}")
+            
+            # Try to extract layout_instructions from malformed JSON
+            try:
+                # Look for layout_instructions field in the response
+                layout_match = re.search(r'"layout_instructions":\s*"([^"]*(?:\\.[^"]*)*)"', content)
+                if layout_match:
+                    extracted_instructions = layout_match.group(1)
+                    # Unescape JSON string
+                    extracted_instructions = extracted_instructions.replace('\\"', '"').replace('\\n', '\n').replace('\\\\', '\\')
+                    return GenerateResponse(
+                        wireframe_json="",
+                        layout_instructions=tidy_md(extracted_instructions)
+                    )
+            except Exception as extract_error:
+                logger.warning(f"Failed to extract layout_instructions: {str(extract_error)}")
+            
+            # Final fallback: clean up the raw response
+            cleaned_content = content
+            # Remove JSON structure artifacts
+            cleaned_content = re.sub(r'^\s*{\s*"wireframe_json":\s*{[^}]*},?\s*', '', cleaned_content)
+            cleaned_content = re.sub(r'^\s*"sketch_description":\s*"[^"]*",?\s*', '', cleaned_content)
+            cleaned_content = re.sub(r'^\s*"custom_prompt":\s*"[^"]*",?\s*', '', cleaned_content)
+            cleaned_content = re.sub(r'^\s*"model_metadata":\s*{.*$', '', cleaned_content, flags=re.DOTALL)
+            
+            # Clean up escape sequences and formatting
+            cleaned_content = cleaned_content.replace('\\n', '\n').replace('\\"', '"').replace('\\\\', '\\')
+            cleaned_content = re.sub(r'[∗∧¨]+', '', cleaned_content)  # Remove weird Unicode characters
+            cleaned_content = re.sub(r'\\[a-zA-Z]', '', cleaned_content)  # Remove LaTeX-like commands
+            
+            return GenerateResponse(wireframe_json="", layout_instructions=tidy_md(cleaned_content))
 
     except HTTPException:
         raise
