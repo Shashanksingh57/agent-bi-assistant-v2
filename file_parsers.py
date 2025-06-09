@@ -3,6 +3,7 @@ from docx import Document
 import json
 from typing import List, Dict, Optional, Union
 import re
+import io
 
 
 def parse_kpi_excel(file_content: bytes) -> List[Dict[str, str]]:
@@ -11,7 +12,7 @@ def parse_kpi_excel(file_content: bytes) -> List[Dict[str, str]]:
     Expected columns: KPI Name, Description, Formula (optional), Target (optional), Category (optional)
     """
     try:
-        df = pd.read_excel(file_content)
+        df = pd.read_excel(io.BytesIO(file_content))
         
         # Normalize column names (case-insensitive)
         df.columns = df.columns.str.strip().str.lower()
@@ -143,7 +144,7 @@ def parse_data_dictionary_excel(file_content: bytes) -> Dict[str, Dict[str, Dict
     Expected columns: Table Name, Column Name, Description, Data Type, Example Values, Business Rules
     """
     try:
-        df = pd.read_excel(file_content)
+        df = pd.read_excel(io.BytesIO(file_content))
         
         # Normalize column names
         df.columns = df.columns.str.strip().str.lower()
