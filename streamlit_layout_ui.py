@@ -596,7 +596,6 @@ def safe_display_table_summary(tables, data_dictionary=None):
             # Column details
             st.markdown("### 📋 Column Details")
             
-            # Debug: Show all columns if none are categorized
             if not key_cols and not numeric_cols and not date_cols and not text_cols:
                 st.markdown("**All Columns:**")
                 for c in columns:
@@ -765,7 +764,6 @@ def call_api(endpoint, payload, timeout=900, max_retries=2):
                 st.info(f"🔄 Retrying in {wait_time} seconds... (Attempt {attempt + 1}/{max_retries + 1})")
                 time.sleep(wait_time)
             
-            # Add detailed timing and debugging
             start_time = time.time()
             st.info(f"🚀 **Starting API call** to {endpoint} with {timeout}s timeout at {time.strftime('%H:%M:%S')}")
             
@@ -785,7 +783,6 @@ def call_api(endpoint, payload, timeout=900, max_retries=2):
             if attempt == max_retries:  # Last attempt
                 st.error(f"❌ **TIMEOUT DETECTED**: Request timed out after **{elapsed_time:.1f} seconds** (configured: {timeout}s)")
                 st.error(f"🔍 **This suggests a proxy/hosting timeout** - the actual timeout ({elapsed_time:.1f}s) is much shorter than configured ({timeout}s)")
-                st.info(f"🔧 **Debug details**: Endpoint: {endpoint}, Error: {str(e)}")
                 
                 # Add environment detection and solutions
                 if "localhost" in FASTAPI_URL or "127.0.0.1" in FASTAPI_URL:
@@ -2311,17 +2308,6 @@ Bottom: Detailed sales table by store"""
                         "data_dictionary": state.data_dictionary
                     }, timeout=timeout)
                     
-                    # Debug: Show what we're getting from the API
-                    st.write("🔍 **DEBUG - API Response:**")
-                    st.write(f"Response type: {type(out)}")
-                    st.write(f"Response keys: {list(out.keys()) if isinstance(out, dict) else 'Not a dict'}")
-                    
-                    if isinstance(out, dict) and "layout_instructions" in out:
-                        layout_instr = out.get("layout_instructions", "")
-                        st.write(f"Layout instructions type: {type(layout_instr)}")
-                        st.write(f"Layout instructions length: {len(str(layout_instr))}")
-                        st.write(f"First 200 chars: {str(layout_instr)[:200]}...")
-                    
                     state.wireframe_json = out.get("wireframe_json", "")
                     state.dev_instructions = out.get("layout_instructions", "")
             elif go and not desc.strip():
@@ -2383,17 +2369,6 @@ Bottom: Detailed sales table by store"""
                                 "kpi_list": state.kpi_list,
                                 "data_dictionary": state.data_dictionary
                             }, timeout=timeout)
-                            
-                            # Debug: Show what we're getting from the API
-                            st.write("🔍 **DEBUG - AI Vision API Response:**")
-                            st.write(f"Response type: {type(out)}")
-                            st.write(f"Response keys: {list(out.keys()) if isinstance(out, dict) else 'Not a dict'}")
-                            
-                            if isinstance(out, dict) and "layout_instructions" in out:
-                                layout_instr = out.get("layout_instructions", "")
-                                st.write(f"Layout instructions type: {type(layout_instr)}")
-                                st.write(f"Layout instructions length: {len(str(layout_instr))}")
-                                st.write(f"First 200 chars: {str(layout_instr)[:200]}...")
                             
                             state.wireframe_json = out.get("wireframe_json", "")
                             state.dev_instructions = out.get("layout_instructions", "")
@@ -2637,28 +2612,20 @@ Bottom: Detailed sales table by store"""
                         del st.session_state['show_new_upload']
                     st.rerun()
             
-            # Debug: Show what we're about to display
-            st.write("🔍 **DEBUG - Before Display:**")
-            st.write(f"dev_instructions type: {type(state.dev_instructions)}")
-            st.write(f"dev_instructions length: {len(str(state.dev_instructions))}")
-            st.write(f"First 300 chars: {str(state.dev_instructions)[:300]}...")
-            
-            # Check if it's JSON-like
+            # Check if it's JSON-like and extract content if needed (fallback safety)
             if isinstance(state.dev_instructions, str) and state.dev_instructions.strip().startswith('{'):
-                st.warning("⚠️ **Detected JSON format** - attempting to extract layout_instructions")
                 try:
                     import json
                     parsed = json.loads(state.dev_instructions)
                     if "layout_instructions" in parsed:
                         actual_instructions = parsed["layout_instructions"]
-                        st.write(f"Extracted instructions: {actual_instructions[:200]}...")
                         st.markdown(tidy_md(actual_instructions))
                     else:
-                        st.error("❌ No layout_instructions found in JSON")
-                        st.code(state.dev_instructions, language="json")
+                        # If no layout_instructions field, display as-is
+                        st.markdown(tidy_md(state.dev_instructions))
                 except json.JSONDecodeError:
-                    st.error("❌ Invalid JSON format")
-                    st.code(state.dev_instructions)
+                    # If invalid JSON, display as-is
+                    st.markdown(tidy_md(state.dev_instructions))
             else:
                 st.markdown(tidy_md(state.dev_instructions))
             

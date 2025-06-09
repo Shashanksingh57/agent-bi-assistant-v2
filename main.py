@@ -979,7 +979,6 @@ Extract all performance indicators, metrics, and KPIs mentioned. Include formula
             if not kpi.get("description"):
                 kpi["description"] = "Description needs to be defined"
         
-        logger.info(f"✅ Parsed {len(parsed['kpi_list'])} KPIs from unstructured notes")
         
         return UnstructuredKPIResponse(
             kpi_list=parsed["kpi_list"],
@@ -1076,7 +1075,6 @@ Extract all data fields, tables, and business rules mentioned. Include data type
                     field_info["description"] = "Description needs to be defined"
         
         total_fields = sum(len(fields) for fields in parsed["data_dictionary"].values())
-        logger.info(f"✅ Parsed {len(parsed['data_dictionary'])} tables with {total_fields} fields from unstructured notes")
         
         return UnstructuredDictResponse(
             data_dictionary=parsed["data_dictionary"],
@@ -1262,7 +1260,6 @@ Expected JSON format:
         if not parsed.get("tables") or len(parsed["tables"]) == 0:
             raise ValueError("No tables generated")
         
-        logger.info(f"✅ Single call success: {len(parsed.get('tables', []))} tables, {len(parsed.get('relationships', []))} relationships")
         return ModelGenResponse(data_model=parsed)
         
     except json.JSONDecodeError as e:
@@ -1334,7 +1331,6 @@ async def process_large_schema_optimized(req: ModelGenRequest, total_size: int):
         "relationships": all_relationships
     }
     
-    logger.info(f"✅ Optimized processing complete: {len(all_tables)} tables, {len(all_relationships)} relationships")
     return ModelGenResponse(data_model=final_model)
 
 
@@ -1420,10 +1416,6 @@ async def generate_layout(req: GenerateRequest):
             
             logger.info(f"Generating data prep for {req.platform_selected}")
             
-            # Debug the model_metadata type and content
-            logger.info(f"Model metadata type: {type(req.model_metadata)}")
-            if isinstance(req.model_metadata, str):
-                logger.warning("Model metadata is a string - will attempt to parse as JSON")
             
             # Ensure model_metadata is properly formatted
             model_dict = safe_get_dict(req.model_metadata)
@@ -1506,7 +1498,6 @@ Please try again or contact support if the issue persists.
             )
             
             elapsed_time = time.time() - start_time
-            logger.info(f"✅ **BACKEND**: Data prep generation completed in {elapsed_time:.1f} seconds")
             
             return GenerateResponse(
                 wireframe_json="", 
@@ -1638,33 +1629,66 @@ Please try again or contact support if the issue persists.
         except Exception as parse_error:
             logger.warning(f"Failed to parse AI response as JSON: {str(parse_error)}")
             
-            # Try to extract layout_instructions from malformed JSON
+            # Enhanced JSON extraction with better regex patterns
             try:
-                # Look for layout_instructions field in the response
-                layout_match = re.search(r'"layout_instructions":\s*"([^"]*(?:\\.[^"]*)*)"', content)
-                if layout_match:
-                    extracted_instructions = layout_match.group(1)
-                    # Unescape JSON string
-                    extracted_instructions = extracted_instructions.replace('\\"', '"').replace('\\n', '\n').replace('\\\\', '\\')
+                # Try multiple patterns to extract layout_instructions
+                patterns = [
+                    # Standard JSON field with escaped quotes
+                    r'"layout_instructions":\s*"([^"]*(?:\\.[^"]*)*)"',
+                    # JSON field with single quotes 
+                    r"'layout_instructions':\s*'([^']*(?:\\.[^']*)*)'",
+                    # Multiline JSON field
+                    r'"layout_instructions":\s*"((?:[^"\\]|\\.)*)"\s*[,}]',
+                    # Without quotes (if AI returns unquoted)
+                    r'"layout_instructions":\s*([^,}]+)',
+                    # Alternative field names
+                    r'"instructions":\s*"([^"]*(?:\\.[^"]*)*)"',
+                    r'"dashboard_instructions":\s*"([^"]*(?:\\.[^"]*)*)"'
+                ]
+                
+                extracted_instructions = None
+                for pattern in patterns:
+                    layout_match = re.search(pattern, content, re.DOTALL)
+                    if layout_match:
+                        extracted_instructions = layout_match.group(1)
+                        break
+                
+                if extracted_instructions:
+                    # Comprehensive unescape
+                    extracted_instructions = extracted_instructions.replace('\\"', '"')
+                    extracted_instructions = extracted_instructions.replace('\\n', '\n')
+                    extracted_instructions = extracted_instructions.replace('\\r', '\r')
+                    extracted_instructions = extracted_instructions.replace('\\t', '\t')
+                    extracted_instructions = extracted_instructions.replace('\\\\', '\\')
+                    
+                    # Clean up common AI artifacts
+                    extracted_instructions = re.sub(r'\\[a-z]', '', extracted_instructions)  # Remove escape sequences
+                    extracted_instructions = re.sub(r'[∗∧¨◊]+', '', extracted_instructions)  # Remove Unicode artifacts
+                    
                     return GenerateResponse(
                         wireframe_json="",
                         layout_instructions=tidy_md(extracted_instructions)
                     )
+                    
             except Exception as extract_error:
                 logger.warning(f"Failed to extract layout_instructions: {str(extract_error)}")
             
-            # Final fallback: clean up the raw response
+            # Final fallback: return raw content with basic cleanup
             cleaned_content = content
-            # Remove JSON structure artifacts
-            cleaned_content = re.sub(r'^\s*{\s*"wireframe_json":\s*{[^}]*},?\s*', '', cleaned_content)
-            cleaned_content = re.sub(r'^\s*"sketch_description":\s*"[^"]*",?\s*', '', cleaned_content)
-            cleaned_content = re.sub(r'^\s*"custom_prompt":\s*"[^"]*",?\s*', '', cleaned_content)
-            cleaned_content = re.sub(r'^\s*"model_metadata":\s*{.*$', '', cleaned_content, flags=re.DOTALL)
             
-            # Clean up escape sequences and formatting
+            # Remove obvious JSON structure artifacts
+            cleaned_content = re.sub(r'^\s*{\s*', '', cleaned_content)  # Remove opening brace
+            cleaned_content = re.sub(r'\s*}\s*$', '', cleaned_content)  # Remove closing brace
+            cleaned_content = re.sub(r'"wireframe_json":\s*[^,}]+,?\s*', '', cleaned_content)  # Remove wireframe_json
+            cleaned_content = re.sub(r'"[^"]*":\s*"[^"]*",?\s*', '', cleaned_content)  # Remove other JSON fields
+            
+            # Basic cleanup
             cleaned_content = cleaned_content.replace('\\n', '\n').replace('\\"', '"').replace('\\\\', '\\')
-            cleaned_content = re.sub(r'[∗∧¨]+', '', cleaned_content)  # Remove weird Unicode characters
-            cleaned_content = re.sub(r'\\[a-zA-Z]', '', cleaned_content)  # Remove LaTeX-like commands
+            cleaned_content = re.sub(r'[∗∧¨◊]+', '', cleaned_content)  # Remove Unicode artifacts
+            
+            # If still looks like JSON, just return the original for frontend to handle
+            if cleaned_content.strip().startswith('{') and cleaned_content.strip().endswith('}'):
+                return GenerateResponse(wireframe_json="", layout_instructions=content)
             
             return GenerateResponse(wireframe_json="", layout_instructions=tidy_md(cleaned_content))
 
@@ -1736,45 +1760,6 @@ async def health_check():
     """Health check endpoint"""
     return {"status": "healthy", "service": "Agentic BI Assistant"}
 
-# ─── Debug Endpoints ─────────────────────────────────────────────────────────────
-@app.get("/debug/test-simple")
-async def test_simple():
-    """Test simple OpenAI call"""
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": "Say hello in 5 words"}],
-            max_tokens=50,
-            timeout=600
-        )
-        return {"status": "success", "response": response.choices[0].message.content}
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-@app.get("/debug/test-vision")
-async def test_vision():
-    """Test if GPT-4 Vision is available"""
-    try:
-        # Create a simple test image
-        test_image = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
-        
-        response = client.chat.completions.create(
-            model="gpt-4-vision-preview",
-            messages=[{
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": "What do you see in this image?"},
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/png;base64,{test_image}"}
-                    }
-                ]
-            }],
-            max_tokens=100
-        )
-        return {"status": "success", "vision_available": True, "response": response.choices[0].message.content}
-    except Exception as e:
-        return {"status": "error", "vision_available": False, "error": str(e)}
 
 if __name__ == "__main__":
     import uvicorn
