@@ -737,12 +737,10 @@ def call_api(endpoint, payload, timeout=900, max_retries=2):
                 time.sleep(wait_time)
             
             start_time = time.time()
-            st.info(f"🚀 **Starting API call** to {endpoint} with {timeout}s timeout at {time.strftime('%H:%M:%S')}")
             
             r = requests.post(url, headers=headers, json=payload, timeout=timeout)
             
             elapsed_time = time.time() - start_time
-            st.success(f"✅ **API call completed** in {elapsed_time:.1f} seconds")
             
             if r.status_code != 200:
                 if attempt == max_retries:  # Last attempt
