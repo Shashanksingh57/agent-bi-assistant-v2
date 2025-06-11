@@ -1696,6 +1696,20 @@ elif state.page == "Data Prep":
                 "Other"
             ])
         
+        # Add complexity level selection
+        st.markdown("### 📊 Instruction Detail Level")
+        complexity_level = st.radio(
+            "Select the level of detail for data preparation instructions:",
+            options=["beginner", "intermediate", "expert"],
+            format_func=lambda x: {
+                "beginner": "🔰 Beginner - Detailed step-by-step for every column",
+                "intermediate": "📈 Intermediate - Balanced detail and efficiency",
+                "expert": "⚡ Expert - Concise patterns and batch operations"
+            }[x],
+            index=1,  # Default to intermediate
+            help="Beginner: Detailed instructions for each column with explanations\nIntermediate: Balanced approach with key details\nExpert: Concise patterns for experienced users"
+        )
+        
         with st.expander("🔧 Advanced Options"):
             include_validation = st.checkbox("Include data validation steps", value=True)
             include_performance = st.checkbox("Include performance optimization tips", value=True)
@@ -1814,7 +1828,8 @@ Keep instructions specific to these tables only.
                             "include_data_prep": True,
                             "data_prep_only": True,
                             "kpi_list": state.kpi_list if chunk_idx == 0 else None,  # Only include KPIs in first chunk
-                            "data_dictionary": state.data_dictionary if chunk_idx == 0 else None
+                            "data_dictionary": state.data_dictionary if chunk_idx == 0 else None,
+                            "instruction_complexity": complexity_level
                         }
                         
                         try:
@@ -1930,7 +1945,8 @@ Provide comprehensive data preparation instructions with:
                         "include_data_prep": True,
                         "data_prep_only": True,
                         "kpi_list": state.kpi_list,
-                        "data_dictionary": state.data_dictionary
+                        "data_dictionary": state.data_dictionary,
+                        "instruction_complexity": complexity_level
                     }
                     
                     # Update progress

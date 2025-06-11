@@ -122,6 +122,7 @@ class GenerateRequest(BaseModel):
     data_prep_only:     bool                    = False
     kpi_list:           Optional[List[Dict[str,str]]] = None
     data_dictionary:    Optional[Dict[str,Dict[str,Dict[str,str]]]] = None
+    instruction_complexity: Optional[str]       = "intermediate"  # beginner, intermediate, expert
 
 class GenerateResponse(BaseModel):
     wireframe_json:      Any   # can be str or object
@@ -260,7 +261,7 @@ def analyze_data_model_for_prep(model_metadata: Dict[str, Any]) -> Dict[str, Any
     
     return analysis
 
-def build_data_prep_prompt(platform: str, model_metadata: dict, custom_requirements: str = "", kpi_list=None, data_dictionary=None) -> str:
+def build_data_prep_prompt(platform: str, model_metadata: dict, custom_requirements: str = "", kpi_list=None, data_dictionary=None, complexity: str = "intermediate") -> str:
     """Build a comprehensive prompt for data preparation that includes specific column analysis"""
     
     try:
@@ -357,6 +358,48 @@ def build_data_prep_prompt(platform: str, model_metadata: dict, custom_requireme
         # Add custom requirements
         if custom_requirements and custom_requirements.strip():
             prompt += f"\n## Additional Requirements:\n{custom_requirements}\n"
+        
+        # Add complexity-based instructions
+        complexity_instructions = ""
+        if complexity == "beginner":
+            complexity_instructions = """
+## IMPORTANT - BEGINNER MODE INSTRUCTIONS:
+- Provide EXTREMELY DETAILED, step-by-step instructions for EVERY SINGLE COLUMN that needs transformation
+- Include explanations of WHY each transformation is needed
+- Show screenshot references for every UI step
+- Provide warnings about common mistakes
+- Include validation steps after each transformation
+- For each column, show before/after data examples
+- Explain every parameter and option in detail
+- Group similar transformations but still show each column individually
+- Use simple language and avoid jargon where possible
+"""
+        elif complexity == "expert":
+            complexity_instructions = """
+## IMPORTANT - EXPERT MODE INSTRUCTIONS:
+- Provide CONCISE, pattern-based instructions
+- Group similar columns together (e.g., "Apply date parsing to: OrderDate, ShipDate, DueDate")
+- Focus on code/formulas over UI steps
+- Skip basic explanations
+- Provide batch operations where possible
+- List columns that need each transformation type rather than detailing each one
+- Assume user knows the platform well
+- Focus on edge cases and performance optimizations
+- Use technical terminology freely
+"""
+        else:  # intermediate
+            complexity_instructions = """
+## IMPORTANT - INTERMEDIATE MODE INSTRUCTIONS:
+- Balance detail with efficiency
+- Show detailed steps for complex transformations
+- Group simple, similar transformations
+- Provide both code and key UI steps
+- Include important validation checks
+- Explain non-obvious transformations
+- Assume basic platform knowledge
+"""
+        
+        prompt += complexity_instructions
         
         # Platform-specific instructions
         if platform.lower() == "power bi":
@@ -1412,7 +1455,8 @@ async def generate_layout(req: GenerateRequest):
                     model_metadata=model_dict,  # Use the safely parsed dictionary
                     custom_requirements=req.custom_prompt or "",
                     kpi_list=req.kpi_list,
-                    data_dictionary=req.data_dictionary
+                    data_dictionary=req.data_dictionary,
+                    complexity=req.instruction_complexity or "intermediate"
                 )
             except Exception as prompt_error:
                 logger.error(f"Error building prompt: {str(prompt_error)}")
