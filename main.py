@@ -9,7 +9,6 @@ import numpy as np
 import cv2
 import logging
 import time
-import psutil
 
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -34,29 +33,6 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Agentic BI Assistant")
 
-# Add health check endpoint
-@app.get("/health")
-async def health_check():
-    """Simple health check to verify server is responsive"""
-    return {"status": "healthy", "timestamp": time.time()}
-
-@app.get("/api/v1/health")
-async def api_health_check():
-    """API health check to verify server is responsive"""
-    # Get memory usage
-    memory = psutil.virtual_memory()
-    process = psutil.Process()
-    
-    return {
-        "status": "healthy", 
-        "timestamp": time.time(), 
-        "message": "Backend API is running",
-        "memory": {
-            "available_gb": round(memory.available / (1024**3), 2),
-            "used_percent": memory.percent,
-            "process_memory_mb": round(process.memory_info().rss / (1024**2), 2)
-        }
-    }
 
 # ─── Helper Functions ────────────────────────────────────────────────────────────
 def safe_get_dict(obj, default=None):
