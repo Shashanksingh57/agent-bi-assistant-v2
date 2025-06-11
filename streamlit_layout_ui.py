@@ -1696,19 +1696,6 @@ elif state.page == "Data Prep":
                 "Other"
             ])
         
-        # Add complexity level selection
-        st.markdown("### 📊 Instruction Detail Level")
-        complexity_level = st.radio(
-            "Select the level of detail for data preparation instructions:",
-            options=["beginner", "intermediate", "expert"],
-            format_func=lambda x: {
-                "beginner": "🔰 Beginner - Detailed step-by-step for every column",
-                "intermediate": "📈 Intermediate - Balanced detail and efficiency",
-                "expert": "⚡ Expert - Concise patterns and batch operations"
-            }[x],
-            index=1,  # Default to intermediate
-            help="Beginner: Detailed instructions for each column with explanations\nIntermediate: Balanced approach with key details\nExpert: Concise patterns for experienced users"
-        )
         
         with st.expander("🔧 Advanced Options"):
             include_validation = st.checkbox("Include data validation steps", value=True)
@@ -1765,6 +1752,14 @@ elif state.page == "Data Prep":
             chunk_size = len(tables)
 
         if st.button("🚀 Generate Data Preparation Instructions", type="primary"):
+            # Get complexity level from persona
+            persona = get_current_persona()
+            if persona:
+                experience_level = persona.get("experience_level", "intermediate")
+                # Map persona levels directly to complexity levels
+                complexity_level = experience_level  # beginner, intermediate, expert
+            else:
+                complexity_level = "intermediate"  # Default if no persona set
             
             # Add progress tracking
             progress_placeholder = st.empty()

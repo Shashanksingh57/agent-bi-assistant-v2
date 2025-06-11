@@ -364,39 +364,124 @@ def build_data_prep_prompt(platform: str, model_metadata: dict, custom_requireme
         if complexity == "beginner":
             complexity_instructions = """
 ## IMPORTANT - BEGINNER MODE INSTRUCTIONS:
-- Provide EXTREMELY DETAILED, step-by-step instructions for EVERY SINGLE COLUMN that needs transformation
-- Include explanations of WHY each transformation is needed
-- Show screenshot references for every UI step
-- Provide warnings about common mistakes
-- Include validation steps after each transformation
-- For each column, show before/after data examples
-- Explain every parameter and option in detail
-- Group similar transformations but still show each column individually
-- Use simple language and avoid jargon where possible
+
+You are creating instructions for someone NEW to BI dashboards. Follow these requirements:
+
+1. **COLUMN-BY-COLUMN DETAIL**: 
+   - Create a separate subsection for EACH column that needs transformation
+   - Format: "### Transforming [Column Name]: [Current Type] → [Target Type]"
+   - Explain WHY this specific column needs this transformation
+   - Show BEFORE and AFTER data examples for clarity
+
+2. **STEP-BY-STEP GUIDANCE**:
+   - Number every single step (1, 2, 3...)
+   - Include exact button names and menu locations
+   - Add screenshots references: "[Screenshot: Power Query Editor - Transform Tab]"
+   - Explain what each step accomplishes
+
+3. **EXPLANATIONS & WARNINGS**:
+   - Explain technical terms in parentheses: "Change type to Decimal (a number with decimal places)"
+   - Add warning boxes for common mistakes: "⚠️ WARNING: Don't select Integer for prices - you'll lose cents!"
+   - Include "Why this matters" sections for each transformation
+
+4. **VALIDATION & CHECKING**:
+   - After each transformation, include: "✅ Check your work: The column should now show..."
+   - Provide sample queries to verify the transformation worked
+   - Include rollback instructions if something goes wrong
+
+5. **FRIENDLY TONE**:
+   - Use encouraging language: "Great job! Now let's move to the next column..."
+   - Break complex concepts into simple analogies
+   - Celebrate progress: "You've completed 3 of 10 transformations!"
+
+Example format:
+### Transforming OrderDate: Text → Date
+**Why**: Excel stored dates as text (like "2024-01-15"), but we need real dates for time-based analysis.
+**Before**: "2024-01-15" (text) | **After**: 01/15/2024 (date)
+1. Click on the OrderDate column header
+2. Go to Transform tab [Screenshot: Transform Tab Location]
+3. Click "Data Type" button → Select "Date"
+⚠️ WARNING: If you see errors, your date format might be different!
+✅ Check: Column icon should now show a calendar symbol
 """
         elif complexity == "expert":
             complexity_instructions = """
 ## IMPORTANT - EXPERT MODE INSTRUCTIONS:
-- Provide CONCISE, pattern-based instructions
-- Group similar columns together (e.g., "Apply date parsing to: OrderDate, ShipDate, DueDate")
-- Focus on code/formulas over UI steps
-- Skip basic explanations
-- Provide batch operations where possible
-- List columns that need each transformation type rather than detailing each one
-- Assume user knows the platform well
-- Focus on edge cases and performance optimizations
-- Use technical terminology freely
+
+You are creating instructions for BI PROFESSIONALS. Be concise and efficient:
+
+1. **PATTERN-BASED TRANSFORMATIONS**:
+   - Group all similar columns: "Date parsing required for: OrderDate, ShipDate, DueDate, LastModified"
+   - Provide the transformation pattern once, list all applicable columns
+   - Focus on code/formulas over UI navigation
+
+2. **BATCH OPERATIONS**:
+   ```m
+   // Apply to all date columns at once
+   dateColumns = {"OrderDate", "ShipDate", "DueDate"},
+   transformedDates = List.Transform(dateColumns, each {_, type date})
+   ```
+
+3. **TECHNICAL FOCUS**:
+   - Assume platform expertise - skip basic navigation
+   - Use technical terminology without explanation
+   - Focus on performance: "Enable query folding by..."
+   - Include advanced techniques: dynamic column lists, parameterized queries
+
+4. **EDGE CASES & OPTIMIZATION**:
+   - Address only non-obvious issues
+   - Provide performance benchmarks where relevant
+   - Include query folding considerations
+   - Suggest bulk transformation strategies
+
+5. **CODE-FIRST APPROACH**:
+   - Lead with M code or SQL
+   - UI steps only for non-scriptable operations
+   - Include reusable functions and patterns
+
+Example format:
+**Date Columns**: Apply DateTime.FromText with culture "en-US" to: OrderDate, ShipDate, DueDate, LastModified
+**Numeric Columns**: Cast to Currency.Type: Price, Cost, Tax, Discount
+**Optimization**: Create column type mapping table for dynamic application across all tables
 """
         else:  # intermediate
             complexity_instructions = """
 ## IMPORTANT - INTERMEDIATE MODE INSTRUCTIONS:
-- Balance detail with efficiency
-- Show detailed steps for complex transformations
-- Group simple, similar transformations
-- Provide both code and key UI steps
-- Include important validation checks
-- Explain non-obvious transformations
-- Assume basic platform knowledge
+
+You are creating instructions for users with SOME BI EXPERIENCE. Balance detail with efficiency:
+
+1. **SMART GROUPING**:
+   - Group similar simple transformations: "Convert all date columns (OrderDate, ShipDate, DueDate) to Date type"
+   - Provide detailed steps for complex or unusual transformations
+   - Show individual steps for columns with special considerations
+
+2. **DUAL APPROACH**:
+   - Provide both UI steps and code for each transformation type
+   - Let users choose their preferred method
+   - Example: "Via UI: Transform → Data Type → Date OR via M code: = Table.TransformColumnTypes(...)"
+
+3. **KEY VALIDATIONS**:
+   - Include validation steps for critical transformations
+   - Skip validation for straightforward type changes
+   - Focus on data quality checks that matter
+
+4. **PRACTICAL FOCUS**:
+   - Explain non-obvious transformations
+   - Skip explanations for standard operations
+   - Include tips for common scenarios
+   - Assume basic platform navigation knowledge
+
+5. **CLEAR STRUCTURE**:
+   - Use headers to separate transformation types
+   - Provide a summary table of all transformations at the end
+   - Include "Quick Reference" sections for common patterns
+
+Example format:
+### Date Transformations
+Convert these text columns to Date type: OrderDate, ShipDate, DueDate
+- **UI Method**: Select columns → Transform → Data Type → Date
+- **M Code**: `= Table.TransformColumnTypes(Source, {{"OrderDate", type date}, {"ShipDate", type date}})`
+- **Note**: If you see errors, check the date format in your source data
 """
         
         prompt += complexity_instructions
