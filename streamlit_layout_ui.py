@@ -1753,12 +1753,6 @@ elif state.page == "Data Prep":
             chunk_size = len(tables)
 
         if st.button("🚀 Generate Data Preparation Instructions", type="primary"):
-            # Generate data preparation instructions
-                - **Restart the backend** if it appears hung
-                - **Check terminal/console** for backend error messages
-                - **Memory issue**: Backend may have run out of memory
-                """)
-                st.stop()  # Use st.stop() instead of return in Streamlit
             
             # Add progress tracking
             progress_placeholder = st.empty()
