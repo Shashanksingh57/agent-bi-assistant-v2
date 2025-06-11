@@ -1367,13 +1367,8 @@ async def generate_layout(req: GenerateRequest):
     start_time = time.time()
     
     try:
-        # Monitor memory at start
-        memory = psutil.virtual_memory()
-        process = psutil.Process()
-        
         logger.info(f"🚀 **BACKEND**: Starting generate-layout request at {time.strftime('%H:%M:%S')}")
         logger.info(f"📊 **REQUEST INFO**: Platform: {req.platform_selected}, Data prep only: {req.data_prep_only}")
-        logger.info(f"💾 **MEMORY**: Available: {memory.available/(1024**3):.2f}GB, Used: {memory.percent}%, Process: {process.memory_info().rss/(1024**2):.2f}MB")
         
         # Data-Prep Only branch - ENHANCED VERSION with error handling
         if req.data_prep_only:
