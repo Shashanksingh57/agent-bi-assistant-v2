@@ -1605,16 +1605,56 @@ Please try again or contact support if the issue persists.
             )
 
         # Full Layout branch
+        # Build platform-specific formula guidance
+        platform_lower = req.platform_selected.lower()
+        if "power bi" in platform_lower:
+            formula_guidance = """
+## Measures (DAX Formulas)
+Create these measures in Power BI using DAX syntax. Copy these exact formulas into your Measures:
+
+## Calculated Columns (DAX Formulas)  
+Create these calculated columns in your data model using DAX syntax:
+"""
+            formula_examples = "Example DAX: `Total Sales = SUM(Sales[Amount])` or `Sales YTD = TOTALYTD([Total Sales], Calendar[Date])`"
+        elif "tableau" in platform_lower:
+            formula_guidance = """
+## Measures (Calculated Fields)
+Create these calculated fields in Tableau. Use these exact formulas in Analysis > Create Calculated Field:
+
+## Calculated Columns (Table Calculations)
+Create these table-level calculations in your data source:
+"""
+            formula_examples = "Example Tableau: `SUM([Sales])` or `WINDOW_SUM(SUM([Sales]))` or `{FIXED [Region] : SUM([Sales])}`"
+        else:
+            formula_guidance = """
+## Measures (Aggregated Metrics)
+Create these measures/metrics in your BI tool:
+
+## Calculated Columns (Derived Fields)
+Create these calculated fields in your data model:
+"""
+            formula_examples = "Use platform-appropriate syntax for calculations"
+        
         system_msg = (
-            f"You are an AI expert in BI dashboards for {req.platform_selected}.  \n"
-            "**First**, under `## Measures`, list each measure or calculated column with exact formula (DAX or Tableau calc).  \n"
-            "**Then**, for each visual, output `## <VisualType>` and a numbered Markdown list:\n"
+            f"You are an AI expert in BI dashboards for {req.platform_selected}.\n\n"
+            f"CRITICAL: **ALWAYS** start your response with these two dedicated sections:\n\n"
+            f"{formula_guidance}\n"
+            f"{formula_examples}\n\n"
+            f"**Format each formula as:**\n"
+            f"### [Measure/Column Name]\n"
+            f"```\n"
+            f"[Exact Formula]\n"
+            f"```\n"
+            f"**Purpose**: [Brief explanation of what this calculates]\n\n"
+            f"**After the formulas**, create your dashboard layout with:\n"
+            f"**Then**, for each visual, output `## <VisualType>` and a numbered Markdown list:\n"
             "1. Which visual to insert\n"
-            "2. Fields in Values/Axis/Legend/Tooltips\n"
+            "2. Fields in Values/Axis/Legend/Tooltips (reference the measures you created above)\n"
             "3. Sorts, filters, groupings\n"
             "4. Suggested formatting\n\n"
             "IMPORTANT: If KPI definitions are provided, prioritize these metrics in your dashboard layout. "
             "If a data dictionary is provided, use the business context to make informed decisions about field usage and visualization types.\n\n"
+            "Always reference the measures and calculated columns you created in the Fields sections of your visuals.\n\n"
             "Return only valid JSON with keys:\n"
             "• wireframe_json: the original sketch_description (as object)\n"
             "• layout_instructions: the Markdown instructions"
