@@ -16,7 +16,9 @@ This folder contains SQL Data Definition Language (DDL) scripts for creating the
 6. **`06_relationships.sql`** - Foreign key relationships between tables
 
 ### Relationship Files
-- **`relationships.json`** - Machine-readable relationship definitions for BI tools
+- **`relationships.txt`** - Human and tool-readable relationship definitions with examples
+- **`relationships_simple.sql`** - Simplified SQL format for tool parsing
+- **`relationships.json`** - Machine-readable relationship definitions (if tool supports JSON)
 
 ## Schema Overview
 

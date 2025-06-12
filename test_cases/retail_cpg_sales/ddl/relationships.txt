@@ -1,0 +1,108 @@
+RETAIL CPG SALES DATABASE RELATIONSHIPS
+=======================================
+
+RELATIONSHIP DEFINITIONS
+------------------------
+
+1. SALES_TRANSACTIONS -> PRODUCTS
+   From Table: sales_transactions
+   From Column: product_id
+   To Table: products
+   To Column: product_id
+   Type: Many-to-One
+   Description: Each sales transaction refers to one product, but a product can appear in many transactions
+
+2. SALES_TRANSACTIONS -> CUSTOMERS
+   From Table: sales_transactions
+   From Column: customer_id
+   To Table: customers
+   To Column: customer_id
+   Type: Many-to-One
+   Description: Each sales transaction is made by one customer, but a customer can make many transactions
+
+3. SALES_TRANSACTIONS -> STORES
+   From Table: sales_transactions
+   From Column: store_id
+   To Table: stores
+   To Column: store_id
+   Type: Many-to-One
+   Description: Each sales transaction occurs at one store, but a store can have many transactions
+
+4. INVENTORY_MOVEMENTS -> PRODUCTS
+   From Table: inventory_movements
+   From Column: product_id
+   To Table: products
+   To Column: product_id
+   Type: Many-to-One
+   Description: Each inventory movement involves one product, but a product can have many movements
+
+RELATIONSHIP SUMMARY
+--------------------
+
+Parent Tables (Referenced by other tables):
+- products (referenced by: sales_transactions, inventory_movements)
+- customers (referenced by: sales_transactions)
+- stores (referenced by: sales_transactions)
+
+Child Tables (Have foreign keys):
+- sales_transactions (3 foreign keys: product_id, customer_id, store_id)
+- inventory_movements (1 foreign key: product_id)
+
+JOIN EXAMPLES
+-------------
+
+-- Sales with Product Details
+SELECT st.*, p.product_name, p.category, p.brand
+FROM sales_transactions st
+JOIN products p ON st.product_id = p.product_id;
+
+-- Sales with Customer Information
+SELECT st.*, c.customer_name, c.customer_type, c.segment
+FROM sales_transactions st
+JOIN customers c ON st.customer_id = c.customer_id;
+
+-- Sales with Store Location
+SELECT st.*, s.store_name, s.city, s.state, s.store_type
+FROM sales_transactions st
+JOIN stores s ON st.store_id = s.store_id;
+
+-- Complete Sales Analysis (All Joins)
+SELECT 
+    st.transaction_date,
+    p.product_name,
+    p.category,
+    c.customer_name,
+    c.segment,
+    s.store_name,
+    s.city,
+    st.quantity_sold,
+    st.total_revenue,
+    st.gross_profit
+FROM sales_transactions st
+JOIN products p ON st.product_id = p.product_id
+JOIN customers c ON st.customer_id = c.customer_id
+JOIN stores s ON st.store_id = s.store_id;
+
+-- Inventory Movement with Product Details
+SELECT im.*, p.product_name, p.category, p.unit_weight_kg
+FROM inventory_movements im
+JOIN products p ON im.product_id = p.product_id;
+
+CARDINALITY NOTES
+-----------------
+
+products (1) <-->> (M) sales_transactions
+- One product can have many sales transactions
+- Each sales transaction has exactly one product
+
+customers (1) <-->> (M) sales_transactions
+- One customer can have many sales transactions
+- Each sales transaction has exactly one customer
+
+stores (1) <-->> (M) sales_transactions
+- One store can have many sales transactions
+- Each sales transaction occurs at exactly one store
+
+products (1) <-->> (M) inventory_movements
+- One product can have many inventory movements
+- Each inventory movement involves exactly one product
