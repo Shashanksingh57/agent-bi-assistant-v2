@@ -13,6 +13,10 @@ This folder contains SQL Data Definition Language (DDL) scripts for creating the
 3. **`03_stores.sql`** - Stores location table
 4. **`04_sales_transactions.sql`** - Sales transactions fact table
 5. **`05_inventory_movements.sql`** - Inventory movements tracking table
+6. **`06_relationships.sql`** - Foreign key relationships between tables
+
+### Relationship Files
+- **`relationships.json`** - Machine-readable relationship definitions for BI tools
 
 ## Schema Overview
 

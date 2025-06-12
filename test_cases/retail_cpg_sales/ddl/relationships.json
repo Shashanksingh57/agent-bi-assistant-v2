@@ -1,0 +1,77 @@
+{
+  "schema_name": "retail_cpg_sales",
+  "relationships": [
+    {
+      "relationship_name": "sales_to_products",
+      "from_table": "sales_transactions",
+      "from_column": "product_id",
+      "to_table": "products",
+      "to_column": "product_id",
+      "relationship_type": "many-to-one",
+      "constraint_name": "fk_sales_transactions_product",
+      "description": "Links sales transactions to products sold"
+    },
+    {
+      "relationship_name": "sales_to_customers",
+      "from_table": "sales_transactions",
+      "from_column": "customer_id",
+      "to_table": "customers",
+      "to_column": "customer_id",
+      "relationship_type": "many-to-one",
+      "constraint_name": "fk_sales_transactions_customer",
+      "description": "Links sales transactions to customers"
+    },
+    {
+      "relationship_name": "sales_to_stores",
+      "from_table": "sales_transactions",
+      "from_column": "store_id",
+      "to_table": "stores",
+      "to_column": "store_id",
+      "relationship_type": "many-to-one",
+      "constraint_name": "fk_sales_transactions_store",
+      "description": "Links sales transactions to store locations"
+    },
+    {
+      "relationship_name": "inventory_to_products",
+      "from_table": "inventory_movements",
+      "from_column": "product_id",
+      "to_table": "products",
+      "to_column": "product_id",
+      "relationship_type": "many-to-one",
+      "constraint_name": "fk_inventory_movements_product",
+      "description": "Links inventory movements to products"
+    }
+  ],
+  "relationship_rules": {
+    "delete_action": "RESTRICT",
+    "update_action": "CASCADE",
+    "notes": "Parent records cannot be deleted if child records exist. Updates to parent keys cascade to children."
+  },
+  "cardinality_summary": {
+    "products": {
+      "role": "parent",
+      "child_tables": ["sales_transactions", "inventory_movements"],
+      "cardinality": "one-to-many"
+    },
+    "customers": {
+      "role": "parent",
+      "child_tables": ["sales_transactions"],
+      "cardinality": "one-to-many"
+    },
+    "stores": {
+      "role": "parent",
+      "child_tables": ["sales_transactions"],
+      "cardinality": "one-to-many"
+    },
+    "sales_transactions": {
+      "role": "child",
+      "parent_tables": ["products", "customers", "stores"],
+      "cardinality": "many-to-one"
+    },
+    "inventory_movements": {
+      "role": "child",
+      "parent_tables": ["products"],
+      "cardinality": "many-to-one"
+    }
+  }
+}
