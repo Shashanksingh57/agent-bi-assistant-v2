@@ -1,0 +1,4 @@
+products(product_id) = sales_transactions(product_id)
+customers(customer_id) = sales_transactions(customer_id)
+stores(store_id) = sales_transactions(store_id)
+products(product_id) = inventory_movements(product_id)
