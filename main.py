@@ -176,7 +176,7 @@ def analyze_data_model_for_prep(model_metadata: Dict[str, Any]) -> Dict[str, Any
             logger.warning(f"Skipping invalid table: {table}")
             continue
             
-        table_name = table_dict.get("name", "Unknown")
+        table_name = table_dict.get("table_name", "") or table_dict.get("name", "Unknown")
         columns = safe_get_list(table_dict.get("columns", []))
         
         logger.info(f"Processing table '{table_name}' with {len(columns)} columns")
