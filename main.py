@@ -140,10 +140,18 @@ class SprintRequest(BaseModel):
     layout_instructions: str
     sprint_length_days:  int
     velocity:            int
+    total_resources:     int = 3
+    points_per_resource: int = 8
+    experience_level:    str = "Mid-level (3-5 years)"
+    priority_focus:      str = "Balanced approach"
 
 class SprintResponse(BaseModel):
     sprint_stories:       List[Dict[str, Any]]
     over_under_capacity:  int
+    estimated_sprints:    int = 1
+    sprint_breakdown:     List[Dict[str, Any]] = []
+    total_story_points:   int = 0
+    team_capacity:        Dict[str, int] = {}
 
 # ─── Data Prep Analysis Functions ───────────────────────────────────────────────
 def analyze_data_model_for_prep(model_metadata: Dict[str, Any]) -> Dict[str, Any]:
@@ -1847,22 +1855,46 @@ Create these calculated fields in your data model:
 # ─── Sprint Board Generation ────────────────────────────────────────────────────
 @app.post("/api/v1/generate-sprint", response_model=SprintResponse)
 async def generate_sprint(req: SprintRequest):
-    """Generate sprint backlog from dashboard development instructions"""
+    """Generate sprint backlog with multi-sprint distribution and resource planning"""
     try:
+        # Calculate team capacity
+        team_capacity = {
+            "total_resources": req.total_resources,
+            "points_per_resource": req.points_per_resource,
+            "total_velocity": req.total_resources * req.points_per_resource
+        }
+        
         system_msg = (
-            "You are an AI that converts dashboard prep & dev steps into Scrum sprint stories.  \n"
-            "Input:\n"
-            "- layout_instructions (Markdown)\n"
-            "- sprint_length_days\n"
-            "- velocity\n\n"
-            "Return only JSON with:\n"
-            "• sprint_stories: [ {title, points, description}, ... ]\n"
-            "• over_under_capacity: integer\n"
+            "You are an AI expert in Agile sprint planning that converts dashboard development instructions into detailed user stories.\n\n"
+            "**CRITICAL REQUIREMENTS:**\n"
+            "1. Create comprehensive user stories with detailed descriptions and acceptance criteria\n"
+            "2. Estimate story points accurately (1=simple, 3=moderate, 5=complex, 8=very complex, 13=epic)\n"
+            "3. Consider team experience level for story complexity and point estimation\n"
+            "4. Break down large tasks into smaller, manageable stories\n\n"
+            "**TEAM CONTEXT:**\n"
+            f"- Team Size: {req.total_resources} developers\n"
+            f"- Individual Capacity: {req.points_per_resource} points per person per sprint\n"
+            f"- Total Team Velocity: {team_capacity['total_velocity']} points per sprint\n"
+            f"- Team Experience: {req.experience_level}\n"
+            f"- Priority Focus: {req.priority_focus}\n"
+            f"- Sprint Length: {req.sprint_length_days} days\n\n"
+            "**OUTPUT FORMAT:**\n"
+            "Return JSON with:\n"
+            "• sprint_stories: [{title, points, description, acceptance_criteria, priority, dependencies}, ...]\n"
+            "• total_story_points: sum of all story points\n"
+            "• estimated_sprints: number of sprints needed based on team velocity\n"
         )
+        
         user_msg = json.dumps({
             "layout_instructions": req.layout_instructions,
-            "sprint_length_days":  req.sprint_length_days,
-            "velocity":            req.velocity
+            "team_context": {
+                "total_resources": req.total_resources,
+                "points_per_resource": req.points_per_resource, 
+                "total_velocity": team_capacity['total_velocity'],
+                "experience_level": req.experience_level,
+                "priority_focus": req.priority_focus,
+                "sprint_length_days": req.sprint_length_days
+            }
         }, indent=2)
         
         # Updated for OpenAI v1.0+
@@ -1872,7 +1904,7 @@ async def generate_sprint(req: SprintRequest):
                     {"role":"system","content":system_msg},
                     {"role":"user","content":user_msg}
                 ],
-                max_tokens=1200,
+                max_tokens=2000,
                 timeout=600
             )
         except Exception as e:
@@ -1883,9 +1915,64 @@ async def generate_sprint(req: SprintRequest):
         except Exception as e:
             raise HTTPException(500, f"Invalid JSON from AI:\n{e}\n\n{content}")
         
+        # Extract stories and calculate metrics
+        sprint_stories = parsed.get("sprint_stories", [])
+        total_story_points = parsed.get("total_story_points", sum(story.get("points", 0) for story in sprint_stories))
+        estimated_sprints = parsed.get("estimated_sprints", max(1, (total_story_points + team_capacity['total_velocity'] - 1) // team_capacity['total_velocity']))
+        
+        # Distribute stories across sprints
+        sprint_breakdown = []
+        if estimated_sprints > 1:
+            current_sprint = 1
+            current_points = 0
+            current_stories = []
+            
+            for story in sprint_stories:
+                story_points = story.get("points", 0)
+                
+                # If adding this story would exceed capacity, start new sprint
+                if current_points + story_points > team_capacity['total_velocity'] and current_stories:
+                    sprint_breakdown.append({
+                        "sprint_number": current_sprint,
+                        "stories": current_stories.copy(),
+                        "total_points": current_points,
+                        "capacity_used": f"{current_points}/{team_capacity['total_velocity']}"
+                    })
+                    current_sprint += 1
+                    current_stories = []
+                    current_points = 0
+                
+                current_stories.append(story)
+                current_points += story_points
+            
+            # Add the last sprint
+            if current_stories:
+                sprint_breakdown.append({
+                    "sprint_number": current_sprint,
+                    "stories": current_stories,
+                    "total_points": current_points,
+                    "capacity_used": f"{current_points}/{team_capacity['total_velocity']}"
+                })
+        else:
+            # Single sprint
+            sprint_breakdown.append({
+                "sprint_number": 1,
+                "stories": sprint_stories,
+                "total_points": total_story_points,
+                "capacity_used": f"{total_story_points}/{team_capacity['total_velocity']}"
+            })
+        
+        # Calculate over/under capacity for first sprint
+        first_sprint_points = sprint_breakdown[0]['total_points'] if sprint_breakdown else 0
+        over_under_capacity = first_sprint_points - team_capacity['total_velocity']
+        
         return SprintResponse(
-            sprint_stories=parsed.get("sprint_stories",[]),
-            over_under_capacity=parsed.get("over_under_capacity",0)
+            sprint_stories=sprint_stories,
+            over_under_capacity=over_under_capacity,
+            estimated_sprints=estimated_sprints,
+            sprint_breakdown=sprint_breakdown,
+            total_story_points=total_story_points,
+            team_capacity=team_capacity
         )
         
     except HTTPException:

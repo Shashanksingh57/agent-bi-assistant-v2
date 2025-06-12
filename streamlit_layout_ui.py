@@ -2664,6 +2664,8 @@ elif state.page == "Sprint Board":
     else:
         st.subheader("📋 Sprint Configuration")
         
+        # Resource Capacity Planning Section
+        st.markdown("### 👥 Team Capacity Planning")
         col1, col2 = st.columns(2)
         
         with col1:
@@ -2673,9 +2675,19 @@ elif state.page == "Sprint Board":
             
             st.markdown("**⏱️ Sprint Settings:**")
             sprint_length = st.number_input("Sprint length (days)", min_value=1, max_value=30, value=14)
-            velocity = st.number_input("Team velocity (story points)", min_value=1, max_value=100, value=20)
-        
+            
         with col2:
+            st.markdown("**👥 Team Configuration:**")
+            total_resources = st.number_input("Total team members", min_value=1, max_value=20, value=3, help="Number of developers on the team")
+            points_per_resource = st.number_input("Story points per person per sprint", min_value=1, max_value=50, value=8, help="Capacity of each team member per sprint")
+            
+            # Calculate total velocity
+            total_velocity = total_resources * points_per_resource
+            st.info(f"📊 **Total Team Velocity**: {total_velocity} points per sprint\n({total_resources} people × {points_per_resource} points each)")
+        
+        # Additional Configuration
+        col3, col4 = st.columns(2)
+        with col3:
             st.markdown("**🎯 Priority Focus:**")
             priority_focus = st.selectbox("Primary focus", [
                 "Speed (MVP approach)",
@@ -2683,10 +2695,19 @@ elif state.page == "Sprint Board":
                 "Features (comprehensive build)",
                 "Balanced approach"
             ])
-        
-        # Hidden team context - default values used but not shown in UI
-        team_size = 3  # Hidden default
-        experience_level = "Mid-level (3-5 years)"  # Hidden default
+            
+        with col4:
+            st.markdown("**📈 Sprint Planning:**")
+            experience_level = st.selectbox("Team experience level", [
+                "Junior (1-2 years)",
+                "Mid-level (3-5 years)",
+                "Senior (5+ years)",
+                "Mixed experience"
+            ], index=1)
+            
+        # Use calculated values
+        velocity = total_velocity
+        team_size = total_resources
         
         if st.button("🚀 Generate Sprint Backlog", type="primary", use_container_width=True):
             with st.spinner("🔄 Analyzing tasks and generating sprint stories with estimates..."):
@@ -2717,22 +2738,32 @@ elif state.page == "Sprint Board":
                         enhanced_instructions += f"""
                         
 ## Team Context
-- Team Size: {team_size} people
+- Team Size: {team_size} people  
+- Individual Capacity: {points_per_resource} points per person
+- Total Team Velocity: {velocity} points per sprint
 - Experience Level: {experience_level}
 - Priority Focus: {priority_focus}
 - Sprint Length: {sprint_length} days
-- Target Velocity: {velocity} points
 """
                         
                         spr = call_api("generate-sprint", {
                             "wireframe_json": wf_json,
                             "layout_instructions": enhanced_instructions,
                             "sprint_length_days": sprint_length,
-                            "velocity": velocity
+                            "velocity": velocity,
+                            "total_resources": total_resources,
+                            "points_per_resource": points_per_resource,
+                            "experience_level": experience_level,
+                            "priority_focus": priority_focus
                         })
                         
+                        # Store enhanced response data
                         state.sprint_stories = spr.get("sprint_stories", [])
                         state.over_under_capacity = spr.get("over_under_capacity")
+                        state.estimated_sprints = spr.get("estimated_sprints", 1)
+                        state.sprint_breakdown = spr.get("sprint_breakdown", [])
+                        state.total_story_points = spr.get("total_story_points", 0)
+                        state.team_capacity = spr.get("team_capacity", {})
                         
                         if state.sprint_stories:
                             st.success("✅ Sprint backlog generated successfully!")
@@ -2741,30 +2772,69 @@ elif state.page == "Sprint Board":
                     st.error(f"❌ Error generating sprint: {str(e)}")
 
         if state.sprint_stories:
-            st.subheader("📋 Sprint Backlog")
+            # Enhanced Sprint Overview
+            st.subheader("📋 Sprint Planning Overview")
             
-            total_points = sum(story.get("points", 0) for story in state.sprint_stories)
-            col1, col2, col3, col4 = st.columns(4)
+            # Get data with fallbacks for backward compatibility
+            total_points = getattr(state, 'total_story_points', sum(story.get("points", 0) for story in state.sprint_stories))
+            estimated_sprints = getattr(state, 'estimated_sprints', 1)
+            team_capacity = getattr(state, 'team_capacity', {})
+            sprint_breakdown = getattr(state, 'sprint_breakdown', [])
+            
+            # Key Metrics
+            col1, col2, col3, col4, col5 = st.columns(5)
             
             with col1:
-                st.metric("Total Stories", len(state.sprint_stories))
+                st.metric("📄 Total Stories", len(state.sprint_stories))
             with col2:
-                st.metric("Total Points", total_points)
+                st.metric("🎯 Total Points", total_points)
             with col3:
-                st.metric("Team Velocity", velocity)
+                st.metric("👥 Team Size", team_capacity.get('total_resources', total_resources))
             with col4:
-                capacity_status = "Over" if state.over_under_capacity and state.over_under_capacity > 0 else "Under" if state.over_under_capacity and state.over_under_capacity < 0 else "On Track"
-                st.metric("Capacity", capacity_status)
+                st.metric("⚡ Velocity/Sprint", team_capacity.get('total_velocity', velocity))
+            with col5:
+                st.metric("📅 Estimated Sprints", estimated_sprints)
             
-            if state.over_under_capacity is not None:
-                if state.over_under_capacity > 0:
-                    st.warning(f"⚠️ **Over capacity by {state.over_under_capacity} points.** Consider moving some stories to the next sprint or reducing scope.")
-                elif state.over_under_capacity < 0:
-                    st.info(f"📈 **Under capacity by {abs(state.over_under_capacity)} points.** You can add more stories or include additional polish tasks.")
-                else:
-                    st.success("✅ **Perfect capacity match!** Sprint is well-balanced for your team.")
+            # Capacity Analysis
+            if estimated_sprints > 1:
+                st.info(f"📈 **Multi-Sprint Project**: This project will require **{estimated_sprints} sprints** based on your team capacity of {team_capacity.get('total_velocity', velocity)} points per sprint.")
+            else:
+                if state.over_under_capacity is not None:
+                    if state.over_under_capacity > 0:
+                        st.warning(f"⚠️ **Over capacity by {state.over_under_capacity} points.** Consider moving some stories to the next sprint.")
+                    elif state.over_under_capacity < 0:
+                        st.info(f"📈 **Under capacity by {abs(state.over_under_capacity)} points.** You can add more stories or refinements.")
+                    else:
+                        st.success("✅ **Perfect capacity match!** Sprint is well-balanced for your team.")
             
-            st.markdown("### 📋 User Stories")
+            # Sprint Breakdown Display
+            if sprint_breakdown and len(sprint_breakdown) > 1:
+                st.markdown("### 📅 Sprint Breakdown")
+                
+                # Sprint tabs for multi-sprint projects
+                sprint_tabs = st.tabs([f"Sprint {sprint['sprint_number']}" for sprint in sprint_breakdown])
+                
+                for i, sprint in enumerate(sprint_breakdown):
+                    with sprint_tabs[i]:
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("Stories", len(sprint['stories']))
+                        with col2:
+                            st.metric("Points", sprint['total_points'])
+                        with col3:
+                            st.metric("Capacity", sprint['capacity_used'])
+                        
+                        for j, story in enumerate(sprint['stories']):
+                            with st.expander(f"🟦 **{story.get('title', f'Story {j+1}')}** ({story.get('points', 0)} pts)", expanded=False):
+                                st.markdown(f"**Description**: {story.get('description', 'No description provided')}")
+                                if story.get('acceptance_criteria'):
+                                    st.markdown(f"**Acceptance Criteria**: {story.get('acceptance_criteria')}")
+                                if story.get('priority'):
+                                    st.markdown(f"**Priority**: {story.get('priority')}")
+                                if story.get('dependencies'):
+                                    st.markdown(f"**Dependencies**: {story.get('dependencies')}")
+            
+            st.markdown("### 📋 All User Stories")
             
             col1, col2 = st.columns([1, 1])
             with col1:
