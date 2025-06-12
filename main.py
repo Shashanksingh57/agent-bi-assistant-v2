@@ -688,44 +688,7 @@ def enhance_with_validation_steps(instructions: str, model_metadata: dict, platf
    - Note any known data quality issues
    - Establish expected ranges based on business knowledge
 
-### Post-Transformation Validation:"""
-    
-    # Add specific column validation based on model
-    model_dict = safe_get_dict(model_metadata)
-    analysis = analyze_data_model_for_prep(model_dict)
-    tables = analysis["tables"]
-    
-    for table in tables:
-        table_name = table["name"]
-        validation_section += f"""
-
-**{table_name} Table Validation:**"""
-        
-        # Primary key validation
-        if table["primary_keys"]:
-            for pk in table["primary_keys"]:
-                validation_section += f"""
-   - `{pk}`: Verify uniqueness (0 duplicates expected)
-   - `{pk}`: Confirm no null values"""
-        
-        # Date column validation
-        for col in table["date_columns"]:
-            validation_section += f"""
-   - `{col}`: Check date range validity (no future dates unless business rule allows)
-   - `{col}`: Verify date format consistency"""
-        
-        # Numeric column validation
-        for col in table["numeric_columns"]:
-            if any(word in col.lower() for word in ["amount", "price", "cost", "salary"]):
-                validation_section += f"""
-   - `{col}`: Verify all values are positive (or handle negatives per business rules)
-   - `{col}`: Check for outliers that may indicate data quality issues"""
-        
-        # Issue-specific validation
-        if table["potential_issues"]:
-            validation_section += f"""
-   - **Data Quality Issues Fixed**: Verify the following issues are resolved:
-     {', '.join(table['potential_issues'])}"""
+"""
     
     validation_section += f"""
 
