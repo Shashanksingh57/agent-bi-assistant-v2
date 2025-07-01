@@ -16,13 +16,66 @@ from persona_manager import (
     initialize_persona_state, get_current_persona, should_show_feature,
     get_persona_prompt_modifier, render_onboarding_modal, render_persona_indicator,
     render_adaptive_help, render_progress_indicator, render_estimated_time,
-    get_adaptive_button_text, render_example_content
+    get_adaptive_button_text, render_example_content, get_enhanced_prompt_modifier,
+    get_current_objectives, initialize_objectives_state, OBJECTIVES,
+    get_sample_inputs_for_persona, should_show_sample_input
 )
 from report_generators import (
     generate_kpi_summary_text, generate_kpi_business_report, generate_single_kpi_section,
     generate_data_dictionary_summary_text, generate_data_dictionary_business_report,
     generate_combined_business_summary, generate_combined_business_report
 )
+
+# ─── Objectives Filtering Function ──────────────────────────────────────────
+def filter_instructions_by_objectives(instructions: str, selected_objectives: list) -> str:
+    """Filter instruction sections based on selected objectives"""
+    if not selected_objectives or not instructions:
+        return instructions
+    
+    # Define section keywords for each objective
+    client_asset_sections = [
+        'business', 'kpi', 'metric', 'relationship', 'data model', 'export', 
+        'documentation', 'summary', 'context', 'stakeholder', 'client'
+    ]
+    
+    dashboard_build_sections = [
+        'transformation', 'dax', 'm code', 'power query', 'sql', 'calculated field',
+        'measure', 'technical', 'implementation', 'performance', 'optimization',
+        'refresh', 'data prep', 'cleaning', 'validation'
+    ]
+    
+    # If both objectives selected, return full instructions
+    if len(selected_objectives) >= 2:
+        return instructions
+    
+    # Filter based on single objective
+    if "client_assets" in selected_objectives:
+        # Keep sections relevant to client assets
+        keywords = client_asset_sections
+    elif "dashboard_build" in selected_objectives:
+        # Keep sections relevant to dashboard building 
+        keywords = dashboard_build_sections
+    else:
+        return instructions
+    
+    # Simple filtering - keep sections that contain relevant keywords
+    lines = instructions.split('\n')
+    filtered_lines = []
+    current_section_relevant = True  # Start with assumption that content is relevant
+    
+    for line in lines:
+        lower_line = line.lower()
+        
+        # Check if this is a header/section line
+        if line.startswith('#') or line.startswith('**') and line.endswith('**'):
+            # Determine if this section is relevant
+            current_section_relevant = any(keyword in lower_line for keyword in keywords)
+        
+        # Include line if current section is relevant or if it's not section-specific content
+        if current_section_relevant or not line.strip() or line.startswith('---'):
+            filtered_lines.append(line)
+    
+    return '\n'.join(filtered_lines)
 
 # ─── Backend Health Check Function ──────────────────────────────────────────
 
@@ -1350,6 +1403,21 @@ The AI will extract structured KPI definitions from your notes.""",
                             state.kpi_list = None
             elif state.kpi_list:
                 st.info(f"✅ {len(state.kpi_list)} KPIs loaded from previous upload")
+            
+            # KPI Summary Display
+            if state.kpi_list:
+                st.markdown("### 📊 KPI Summary")
+                kpi_summary_text = "**The following KPIs are calculated from the data model:**\n\n"
+                for i, kpi in enumerate(state.kpi_list, 1):
+                    kpi_summary_text += f"{i}. **{kpi.get('name', 'Unnamed KPI')}**: {kpi.get('description', 'No description provided')}"
+                    if kpi.get('formula'):
+                        kpi_summary_text += f" It is calculated by {kpi['formula']}."
+                    if kpi.get('target'):
+                        kpi_summary_text += f" The target is {kpi['target']}."
+                    kpi_summary_text += "\n\n"
+                
+                with st.expander("📊 View KPI Documentation", expanded=True):
+                    st.markdown(kpi_summary_text)
         
         # Data Dictionary Upload
         with col2:
@@ -1502,6 +1570,24 @@ The AI will structure this into a proper data dictionary format.""",
             elif state.data_dictionary:
                 total_entries = sum(len(cols) for cols in state.data_dictionary.values())
                 st.info(f"✅ Dictionary loaded: {len(state.data_dictionary)} tables, {total_entries} columns")
+            
+            # Data Dictionary Summary Display
+            if state.data_dictionary:
+                st.markdown("### 📖 Data Dictionary Summary")
+                dict_summary_text = "**The following data elements are available in the data model:**\n\n"
+                for table_name, columns in state.data_dictionary.items():
+                    dict_summary_text += f"**📋 Table: {table_name}**\n"
+                    for col_name, col_info in columns.items():
+                        dict_summary_text += f"- `{col_name}`: {col_info.get('description', 'No description provided')}"
+                        if col_info.get('type'):
+                            dict_summary_text += f" (Type: {col_info['type']})"
+                        if col_info.get('rules'):
+                            dict_summary_text += f" - Rules: {col_info['rules']}"
+                        dict_summary_text += "\n"
+                    dict_summary_text += "\n"
+                
+                with st.expander("📖 View Data Dictionary Documentation", expanded=True):
+                    st.markdown(dict_summary_text)
         
         # ─── Business-Friendly Sharing & Export ──────────────────────────────────
         if state.kpi_list or state.data_dictionary:
@@ -1528,21 +1614,11 @@ The AI will structure this into a proper data dictionary format.""",
                         if len(state.kpi_list) > 5:
                             st.markdown(f"... and {len(state.kpi_list) - 5} more KPIs")
                     
-                    # Export buttons
+                    # Copy button only
                     if st.button("📋 Copy KPI Summary", key="copy_kpi", use_container_width=True):
                         kpi_summary = generate_kpi_summary_text(state.kpi_list)
                         st.code(kpi_summary, language='markdown')
                         st.success("✅ KPI summary generated! Copy the text above.")
-                    
-                    if st.button("📄 Download KPI Report", key="download_kpi", use_container_width=True):
-                        kpi_report = generate_kpi_business_report(state.kpi_list)
-                        st.download_button(
-                            label="📥 Download KPI Report.md",
-                            data=kpi_report,
-                            file_name="KPI_Definitions_Report.md",
-                            mime="text/markdown",
-                            use_container_width=True
-                        )
             
             # Data Dictionary Export Options  
             if state.data_dictionary:
@@ -1567,42 +1643,39 @@ The AI will structure this into a proper data dictionary format.""",
                             st.markdown("")
                             table_count += 1
                     
-                    # Export buttons
+                    # Copy button only
                     if st.button("📋 Copy Dictionary Summary", key="copy_dict", use_container_width=True):
                         dict_summary = generate_data_dictionary_summary_text(state.data_dictionary)
                         st.code(dict_summary, language='markdown')
                         st.success("✅ Data dictionary summary generated! Copy the text above.")
-                    
-                    if st.button("📄 Download Dictionary Report", key="download_dict", use_container_width=True):
-                        dict_report = generate_data_dictionary_business_report(state.data_dictionary)
-                        st.download_button(
-                            label="📥 Download Data Dictionary.md",
-                            data=dict_report,
-                            file_name="Data_Dictionary_Report.md",
-                            mime="text/markdown",
-                            use_container_width=True
-                        )
             
-            # Combined Export Options
-            if state.kpi_list and state.data_dictionary:
-                with col3:
-                    st.markdown("**📊📖 Combined Export**")
-                    st.markdown("Export both KPIs and Data Dictionary together")
-                    
-                    if st.button("📋 Copy Combined Summary", key="copy_combined", use_container_width=True):
-                        combined_summary = generate_combined_business_summary(state.kpi_list, state.data_dictionary)
-                        st.code(combined_summary, language='markdown')
-                        st.success("✅ Combined summary generated! Copy the text above.")
-                    
-                    if st.button("📄 Download Complete Report", key="download_combined", use_container_width=True):
-                        combined_report = generate_combined_business_report(state.kpi_list, state.data_dictionary, state.model_metadata)
-                        st.download_button(
-                            label="📥 Download Complete Business Report.md",
-                            data=combined_report,
-                            file_name="Business_Context_Complete_Report.md",
-                            mime="text/markdown",
-                            use_container_width=True
-                        )
+            # Download Options in Third Column
+            with col3:
+                st.markdown("**📥 Download Options**")
+                
+                # KPI Download
+                if state.kpi_list:
+                    kpi_report = generate_kpi_business_report(state.kpi_list)
+                    st.download_button(
+                        label="📊 Download KPI Report",
+                        data=kpi_report,
+                        file_name="KPI_Definitions_Report.md",
+                        mime="text/markdown",
+                        use_container_width=True,
+                        key="download_kpi_btn"
+                    )
+                
+                # Data Dictionary Download
+                if state.data_dictionary:
+                    dict_report = generate_data_dictionary_business_report(state.data_dictionary)
+                    st.download_button(
+                        label="📖 Download Data Dictionary",
+                        data=dict_report,
+                        file_name="Data_Dictionary_Report.md",
+                        mime="text/markdown",
+                        use_container_width=True,
+                        key="download_dict_btn"
+                    )
 
 # ─── Page: Data Prep (Simplified - hidden complexity, default to Advanced) ───────
 elif state.page == "Data Prep":
@@ -1751,6 +1824,13 @@ elif state.page == "Data Prep":
             use_chunked = False
             chunk_size = len(tables)
 
+        # Force technical sections only for Data Prep
+        # Initialize objectives state if needed
+        initialize_objectives_state()
+        
+        # Always set to dashboard_build only (technical sections)
+        st.session_state.selected_objectives = ["dashboard_build"]
+
         if st.button("🚀 Generate Data Preparation Instructions", type="primary"):
             # Get complexity level from persona
             persona = get_current_persona()
@@ -1824,7 +1904,8 @@ Keep instructions specific to these tables only.
                             "data_prep_only": True,
                             "kpi_list": state.kpi_list if chunk_idx == 0 else None,  # Only include KPIs in first chunk
                             "data_dictionary": state.data_dictionary if chunk_idx == 0 else None,
-                            "instruction_complexity": complexity_level
+                            "instruction_complexity": complexity_level,
+                            "selected_objectives": st.session_state.selected_objectives
                         }
                         
                         try:
@@ -1941,7 +2022,8 @@ Provide comprehensive data preparation instructions with:
                         "data_prep_only": True,
                         "kpi_list": state.kpi_list,
                         "data_dictionary": state.data_dictionary,
-                        "instruction_complexity": complexity_level
+                        "instruction_complexity": complexity_level,
+                        "selected_objectives": st.session_state.selected_objectives
                     }
                     
                     # Update progress
@@ -2074,11 +2156,19 @@ Provide comprehensive data preparation instructions with:
         if state.data_prep_instructions:
             st.subheader("📋 Data Preparation Instructions")
             
+            # Always showing technical sections only
+            st.info("🔧 **Showing Technical Sections Only**")
+            
             col1, col2, col3 = st.columns([1, 1, 2])
             with col1:
+                # Filter instructions based on objectives before showing/downloading
+                filtered_instructions = filter_instructions_by_objectives(
+                    state.data_prep_instructions, 
+                    st.session_state.selected_objectives
+                )
                 st.download_button(
                     label="📥 Download Instructions",
-                    data=state.data_prep_instructions,
+                    data=filtered_instructions,
                     file_name=f"data_prep_{tool.lower().replace(' ', '_')}.md",
                     mime="text/markdown"
                 )
@@ -2087,7 +2177,12 @@ Provide comprehensive data preparation instructions with:
                     state.data_prep_instructions = ""
                     st.rerun()
             
-            st.markdown(tidy_md(state.data_prep_instructions))
+            # Display filtered instructions
+            filtered_instructions = filter_instructions_by_objectives(
+                state.data_prep_instructions, 
+                st.session_state.selected_objectives
+            )
+            st.markdown(tidy_md(filtered_instructions))
             
             st.subheader("✅ Data Preparation Checklist")
             st.markdown("""
@@ -2453,80 +2548,13 @@ Bottom: Detailed sales table by store"""
                                     st.session_state['show_new_upload'] = True
                                     st.rerun()
                         else:
-                            st.info("💡 **Suggestions:**\n- Try a different image\n- Use Simple Detection method\n- Or describe manually")
+                            st.info("💡 **Suggestions:**\n- Try a different image\n- Or describe manually")
 
         # Simple Detection Method
-        else:  # state.input_method == "simple"
-            st.subheader("🔧 Simple Layout Detection")
-            st.info("🛠️ **Backup Method** - Uses basic shape detection. Works without AI but provides less detailed analysis.")
-            
-            uploaded_file = st.file_uploader(
-                "Upload dashboard image", 
-                type=['png', 'jpg', 'jpeg'],
-                help="🎯 **Works best with:** Clear wireframes, high contrast images, distinct geometric shapes",
-                key="simple_detection_upload"
-            )
-            
-            if uploaded_file:
-                col1, col2 = st.columns([3, 1])
-                
-                with col1:
-                    st.image(uploaded_file, caption=f"📸 {uploaded_file.name}", use_column_width=True)
-                
-                with col2:
-                    st.markdown("**📊 File Info:**")
-                    file_size_kb = len(uploaded_file.getvalue()) / 1024
-                    st.write(f"📁 **Size:** {file_size_kb:.1f} KB")
-                    st.write(f"🎨 **Type:** {uploaded_file.type}")
-                
-                if st.button("🔍 Detect Layout Shapes", type="primary", key="simple_detect"):
-                    with st.spinner("🔍 Detecting layout elements..."):
-                        result = upload_and_analyze_image(uploaded_file, platform, "simple_detection")
-                        
-                        if result:
-                            layout_description = result.get("layout_description", "")
-                            elements_found = result.get("elements_found", 0)
-                            
-                            if elements_found > 0:
-                                st.success(f"✅ Detected {elements_found} layout elements!")
-                            else:
-                                st.warning("⚠️ No clear layout elements detected.")
-                            
-                            with st.expander("🔍 Detection Results", expanded=True):
-                                st.text_area("Detected Layout:", layout_description, height=200, key="simple_result")
-                            
-                            st.markdown("### ✏️ Enhance Description")
-                            manual_edit = st.text_area(
-                                "Edit or enhance the detected layout:", 
-                                layout_description, 
-                                height=150,
-                                key="manual_edit",
-                                help="Improve the description by adding details the detection missed"
-                            )
-                            
-                            if st.button("✨ Generate Dashboard Instructions", type="primary", key="simple_generate"):
-                                with st.spinner("🔨 Generating dashboard instructions..."):
-                                    # Dynamic timeout based on model complexity
-                                    model_dict = safe_get_dict(state.model_metadata or {})
-                                    tables = safe_get_list(model_dict.get("tables", []))
-                                    total_columns = sum(len(safe_get_list(safe_get_dict(t).get("columns", []))) for t in tables)
-                                    is_complex = len(tables) > 10 or total_columns > 100
-                                    
-                                    timeout = 240 if is_complex else 150  # 4 minutes for complex, 2.5 for others
-                                    out = call_api("generate-layout", {
-                                        "sketch_description": manual_edit,
-                                        "platform_selected": platform,
-                                        "custom_prompt": prompt,
-                                        "model_metadata": state.model_metadata,
-                                        "include_data_prep": False,
-                                        "data_prep_only": False,
-                                        "kpi_list": state.kpi_list,
-                                        "data_dictionary": state.data_dictionary
-                                    }, timeout=timeout)
-                                    state.wireframe_json = out.get("wireframe_json", "")
-                                    state.dev_instructions = out.get("layout_instructions", "")
-                        else:
-                            st.info("💡 Try the AI Vision method for better results.")
+        # Simple Detection method removed - redirect to AI Vision
+        else:  # Previously simple method, now redirect
+            state.input_method = "ai_vision"
+            st.rerun()
 
         # Results Display
         if state.wireframe_json or state.dev_instructions:
