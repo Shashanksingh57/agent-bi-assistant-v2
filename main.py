@@ -123,6 +123,7 @@ class GenerateRequest(BaseModel):
     kpi_list:           Optional[List[Dict[str,str]]] = None
     data_dictionary:    Optional[Dict[str,Dict[str,Dict[str,str]]]] = None
     instruction_complexity: Optional[str]       = "intermediate"  # beginner, intermediate, expert
+    selected_objectives: Optional[List[str]]    = []  # client_assets, dashboard_build
 
 class GenerateResponse(BaseModel):
     wireframe_json:      Any   # can be str or object
@@ -269,8 +270,8 @@ def analyze_data_model_for_prep(model_metadata: Dict[str, Any]) -> Dict[str, Any
     
     return analysis
 
-def build_data_prep_prompt(platform: str, model_metadata: dict, custom_requirements: str = "", kpi_list=None, data_dictionary=None, complexity: str = "intermediate") -> str:
-    """Build a comprehensive prompt for data preparation that includes specific column analysis"""
+def build_data_prep_prompt(platform: str, model_metadata: dict, custom_requirements: str = "", kpi_list=None, data_dictionary=None, complexity: str = "intermediate", objectives: List[str] = None) -> str:
+    """Build a comprehensive prompt for data preparation that includes specific column analysis and supports multiple objectives"""
     
     try:
         if not model_metadata:
@@ -366,6 +367,35 @@ def build_data_prep_prompt(platform: str, model_metadata: dict, custom_requireme
         # Add custom requirements
         if custom_requirements and custom_requirements.strip():
             prompt += f"\n## Additional Requirements:\n{custom_requirements}\n"
+        
+        # Add objectives-based sections requirement
+        objectives_instructions = ""
+        if objectives:
+            objectives_instructions = f"""
+## CRITICAL - UNIFIED OUTPUT WITH SELECTIVE SECTIONS:
+
+You must generate ONE comprehensive set of data prep instructions that covers BOTH technical implementation AND business documentation. Structure your output with clearly marked sections:
+
+**BUSINESS SECTIONS** (for client_assets objective):
+- ## KPIs and Metrics Documentation
+- ## Data Relationships Overview
+- ## Data Model Export Guide
+- ## Business Context and Rules
+- ## Data Dictionary Insights
+
+**TECHNICAL SECTIONS** (for dashboard_build objective):
+- ## Data Transformation Instructions
+- ## Technical Implementation Details
+- ## M Code/DAX Formulas
+- ## Performance Optimization
+- ## Validation and Testing Steps
+
+Selected objectives: {', '.join(objectives)}
+
+Even if only one objective is selected, generate ALL sections - the frontend will filter which ones to display. This ensures sprint generation always has access to the complete picture.
+"""
+        
+        prompt += objectives_instructions
         
         # Add complexity-based instructions
         complexity_instructions = ""
@@ -1512,7 +1542,8 @@ async def generate_layout(req: GenerateRequest):
                     custom_requirements=req.custom_prompt or "",
                     kpi_list=req.kpi_list,
                     data_dictionary=req.data_dictionary,
-                    complexity=req.instruction_complexity or "intermediate"
+                    complexity=req.instruction_complexity or "intermediate",
+                    objectives=req.selected_objectives or []
                 )
             except Exception as prompt_error:
                 logger.error(f"Error building prompt: {str(prompt_error)}")

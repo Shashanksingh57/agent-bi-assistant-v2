@@ -83,6 +83,22 @@ GOALS = {
     }
 }
 
+# NEW OBJECTIVES for replacement
+OBJECTIVES = {
+    "client_assets": {
+        "name": "Client Assets",
+        "icon": "📋",
+        "description": "Generate deliverable materials for client engagements (KPIs, relationships documentation, data model exports, business context)",
+        "sections": ["kpis", "relationships", "data_model_exports", "business_context", "data_dictionary"]
+    },
+    "dashboard_build": {
+        "name": "Dashboard Build",
+        "icon": "🔧",
+        "description": "Focus on creating the actual dashboard solution (data prep implementation, dashboard dev instructions, technical details)",
+        "sections": ["transformations", "technical_implementation", "m_code_dax", "performance_optimization", "validation_steps"]
+    }
+}
+
 
 def initialize_persona_state():
     """Initialize persona-related session state variables"""
@@ -101,6 +117,19 @@ def get_current_persona() -> Optional[Dict]:
     if st.session_state.user_persona:
         return st.session_state.user_persona
     return None
+
+
+def get_current_objectives() -> list:
+    """Get the current selected objectives (for new checkbox system)"""
+    if hasattr(st.session_state, 'selected_objectives') and st.session_state.selected_objectives:
+        return st.session_state.selected_objectives
+    return []
+
+
+def initialize_objectives_state():
+    """Initialize objectives-related session state"""
+    if "selected_objectives" not in st.session_state:
+        st.session_state.selected_objectives = []
 
 
 def should_show_feature(feature: str) -> bool:
@@ -126,17 +155,71 @@ def get_persona_prompt_modifier() -> str:
     
     modifiers = []
     
+    # Enhanced experience-based modifiers
     if level == "beginner":
         modifiers.append("Explain concepts in simple terms suitable for someone new to BI dashboards.")
         modifiers.append("Include step-by-step instructions with clear explanations.")
+        modifiers.append("Assume zero prior knowledge and explain technical terms.")
+        modifiers.append("Make AI-generated instructions ultra-detailed with comprehensive coverage.")
+        modifiers.append("For data prep: explain every single transformation, even if repetitive.")
+        modifiers.append("For dashboard dev: explain every visualization thoroughly, regardless of similarity.")
     elif level == "expert":
         modifiers.append("Provide concise, technical instructions without basic explanations.")
         modifiers.append("Focus on advanced features and optimization techniques.")
+        modifiers.append("Condense instructions into summaries focusing on quick asset access.")
+        modifiers.append("Use technical terminology without explanation.")
+        modifiers.append("Focus on performance and optimization over explanations.")
+    else:  # intermediate
+        modifiers.append("Balance detail with efficiency for users with some BI experience.")
+        modifiers.append("Group similar transformations and provide structured instructions.")
+        modifiers.append("Include key validations for critical transformations.")
+        modifiers.append("Provide both UI and code options when applicable.")
     
+    # Enhanced goal-based modifiers
     if goal == "asset_generation":
         modifiers.append("Emphasize reusability and template patterns.")
+        modifiers.append("Focus on creating downloadable, reusable assets.")
     elif goal == "client_delivery":
         modifiers.append("Focus on professional presentation and client-ready outputs.")
+        modifiers.append("Ensure polished, production-ready deliverables.")
+    elif goal == "learning":
+        modifiers.append("Include educational context and concept explanations.")
+        modifiers.append("Provide learning-focused guidance with why explanations.")
+    
+    return " ".join(modifiers)
+
+
+def get_enhanced_prompt_modifier(objectives: list = None) -> str:
+    """Get enhanced prompt modifier supporting multiple objectives"""
+    persona = get_current_persona()
+    if not persona:
+        return ""
+    
+    level = persona.get("experience_level", "intermediate")
+    modifiers = []
+    
+    # Experience-based instruction complexity
+    if level == "beginner":
+        modifiers.append("BEGINNER MODE: Provide ultra-detailed, step-by-step instructions with comprehensive explanations.")
+        modifiers.append("Explain every technical term and assume zero prior knowledge.")
+        modifiers.append("Include validation steps and common troubleshooting tips.")
+    elif level == "expert":
+        modifiers.append("EXPERT MODE: Provide condensed, technical summaries without basic explanations.")
+        modifiers.append("Focus on efficiency, patterns, and optimization techniques.")
+        modifiers.append("Use advanced terminology and code-first approaches.")
+    else:  # intermediate
+        modifiers.append("INTERMEDIATE MODE: Balance detail with efficiency, group similar operations.")
+        modifiers.append("Provide both UI and code approaches where applicable.")
+        modifiers.append("Include key validations for critical steps.")
+    
+    # Objective-based content filtering
+    if objectives:
+        if "client_assets" in objectives:
+            modifiers.append("Include business-focused content: KPIs, relationships, data models, business context.")
+        if "dashboard_build" in objectives:
+            modifiers.append("Include technical implementation: transformations, code, performance optimization.")
+        if len(objectives) > 1:
+            modifiers.append("Organize content with clear sections for different objectives.")
     
     return " ".join(modifiers)
 
@@ -234,36 +317,54 @@ def render_onboarding_modal():
         if experience_level:
             st.session_state.temp_experience = experience_level
         
-        # Question 2: Primary Goal
-        st.markdown("### 2️⃣ What's your primary goal?")
+        # Question 2: Project Objectives (NEW SYSTEM)
+        st.markdown("### 2️⃣ What are your project objectives?")
+        st.markdown("Select what you need (you can choose both):")
         
-        goal_col1, goal_col2, goal_col3 = st.columns(3)
+        # Initialize objectives state
+        if 'temp_objectives' not in st.session_state:
+            st.session_state.temp_objectives = []
         
-        primary_goal = None
+        obj_col1, obj_col2 = st.columns(2)
         
-        with goal_col1:
-            if st.button(f"{GOALS['learning']['icon']} {GOALS['learning']['button_text']}", 
-                        use_container_width=True,
-                        help=GOALS['learning']['description']):
-                primary_goal = "learning"
+        with obj_col1:
+            client_assets_selected = st.checkbox(
+                f"{OBJECTIVES['client_assets']['icon']} **{OBJECTIVES['client_assets']['name']}**",
+                value="client_assets" in st.session_state.temp_objectives,
+                help=OBJECTIVES['client_assets']['description'],
+                key="onboarding_client_assets"
+            )
         
-        with goal_col2:
-            if st.button(f"{GOALS['asset_generation']['icon']} {GOALS['asset_generation']['button_text']}", 
-                        use_container_width=True,
-                        help=GOALS['asset_generation']['description']):
-                primary_goal = "asset_generation"
+        with obj_col2:
+            dashboard_build_selected = st.checkbox(
+                f"{OBJECTIVES['dashboard_build']['icon']} **{OBJECTIVES['dashboard_build']['name']}**",
+                value="dashboard_build" in st.session_state.temp_objectives,
+                help=OBJECTIVES['dashboard_build']['description'],
+                key="onboarding_dashboard_build"
+            )
         
-        with goal_col3:
-            if st.button(f"{GOALS['client_delivery']['icon']} {GOALS['client_delivery']['button_text']}", 
-                        use_container_width=True,
-                        help=GOALS['client_delivery']['description']):
-                primary_goal = "client_delivery"
+        # Update temp objectives
+        new_temp_objectives = []
+        if client_assets_selected:
+            new_temp_objectives.append("client_assets")
+        if dashboard_build_selected:
+            new_temp_objectives.append("dashboard_build")
         
-        if primary_goal:
-            st.session_state.temp_goal = primary_goal
+        st.session_state.temp_objectives = new_temp_objectives
+        
+        # Show helper text
+        if not new_temp_objectives:
+            st.info("💡 Select at least one objective to customize your experience.")
+        elif len(new_temp_objectives) == 2:
+            st.success("✅ Both objectives selected - you'll get comprehensive, organized content.")
+        else:
+            selected_obj = OBJECTIVES[new_temp_objectives[0]]
+            st.success(f"✅ {selected_obj['icon']} {selected_obj['name']} selected.")
+        
+        # Objectives are handled above via checkboxes
         
         # Show current selections
-        if hasattr(st.session_state, 'temp_experience') or hasattr(st.session_state, 'temp_goal'):
+        if hasattr(st.session_state, 'temp_experience') or st.session_state.temp_objectives:
             st.markdown("---")
             st.markdown("**Your selections:**")
             
@@ -271,9 +372,9 @@ def render_onboarding_modal():
                 exp = PERSONAS[st.session_state.temp_experience]
                 st.markdown(f"- Experience: {exp['icon']} **{exp['name']}**")
             
-            if hasattr(st.session_state, 'temp_goal'):
-                goal = GOALS[st.session_state.temp_goal]
-                st.markdown(f"- Goal: {goal['icon']} **{goal['name']}**")
+            if st.session_state.temp_objectives:
+                obj_names = [f"{OBJECTIVES[obj]['icon']} {OBJECTIVES[obj]['name']}" for obj in st.session_state.temp_objectives]
+                st.markdown(f"- Objectives: {', '.join(obj_names)}")
         
         # Action buttons
         st.markdown("---")
@@ -284,13 +385,14 @@ def render_onboarding_modal():
             if st.button("Skip for now", use_container_width=True, type="secondary"):
                 st.session_state.user_persona = {
                     "experience_level": "intermediate",
-                    "primary_goal": "learning",
+                    "primary_goal": "learning",  # Keep for legacy compatibility
                     "skipped": True
                 }
+                st.session_state.selected_objectives = ["dashboard_build"]  # Default to dashboard build
                 st.session_state.onboarding_completed = True
                 st.session_state.show_onboarding = False
                 # Clean up temp variables
-                for key in ['temp_experience', 'temp_goal']:
+                for key in ['temp_experience', 'temp_objectives']:
                     if hasattr(st.session_state, key):
                         delattr(st.session_state, key)
                 st.rerun()
@@ -298,7 +400,7 @@ def render_onboarding_modal():
         with action_col2:
             # Enable Continue only if both selections made
             can_continue = (hasattr(st.session_state, 'temp_experience') and 
-                          hasattr(st.session_state, 'temp_goal'))
+                          len(st.session_state.temp_objectives) > 0)
             
             if st.button("Continue →", 
                         use_container_width=True, 
@@ -307,14 +409,15 @@ def render_onboarding_modal():
                 if can_continue:
                     st.session_state.user_persona = {
                         "experience_level": st.session_state.temp_experience,
-                        "primary_goal": st.session_state.temp_goal,
+                        "primary_goal": "learning",  # Keep for legacy compatibility
                         "skipped": False
                     }
+                    st.session_state.selected_objectives = st.session_state.temp_objectives.copy()
                     st.session_state.onboarding_completed = True
                     st.session_state.show_onboarding = False
                     # Clean up temp variables
                     delattr(st.session_state, 'temp_experience')
-                    delattr(st.session_state, 'temp_goal')
+                    delattr(st.session_state, 'temp_objectives')
                     st.rerun()
 
 
@@ -348,7 +451,7 @@ def render_persona_indicator():
         st.session_state.show_onboarding = True
         st.session_state.onboarding_completed = False
         # Clear any temporary selections
-        for key in ['temp_experience', 'temp_goal']:
+        for key in ['temp_experience', 'temp_objectives']:
             if hasattr(st.session_state, key):
                 delattr(st.session_state, key)
         st.rerun()
@@ -472,3 +575,51 @@ def render_example_content(title: str, content: str):
     
     with st.expander(f"📝 Example: {title}"):
         st.markdown(content)
+
+
+def get_sample_inputs_for_persona(field_type: str) -> dict:
+    """Get sample inputs based on persona level"""
+    persona = get_current_persona()
+    level = persona.get("experience_level", "intermediate") if persona else "intermediate"
+    
+    samples = {
+        "beginner": {
+            "sketch_description": "Top row: 3 KPI cards showing Total Sales, Orders, and Customers. Middle: Large bar chart of Sales by Month. Bottom left: Table of Top Products. Bottom right: Pie chart of Sales by Category.",
+            "wireframe_text": "Dashboard with sales metrics at top, main chart in center, details below",
+            "custom_prompt": "Make this beginner-friendly with clear labels and explanations",
+            "kpi_notes": "Total Sales: sum of all sales amounts. Customer Count: unique customers. Order Count: total number of orders.",
+            "data_dict_notes": "Sales table has: SaleID (unique identifier), Amount (price), Date (when sold), CustomerID (who bought). Product table has: ProductID, Name, Category."
+        },
+        "intermediate": {
+            "sketch_description": "Executive dashboard: KPI row (Revenue, Growth %, Margin), trend analysis section, regional breakdown, performance metrics",
+            "custom_prompt": "Focus on actionable insights and drill-down capabilities",
+            "kpi_notes": "Revenue YoY growth, Gross margin percentage, Customer acquisition cost, Lifetime value trends"
+        },
+        "expert": {
+            "sketch_description": "Advanced analytics dashboard with time-series forecasting, cohort analysis, and performance attribution modeling",
+            "custom_prompt": "Implement advanced DAX/calculated fields for complex business logic"
+        }
+    }
+    
+    return samples.get(level, {}).get(field_type, "")
+
+
+def should_show_sample_input(field_type: str) -> bool:
+    """Determine if sample input should be shown based on persona"""
+    persona = get_current_persona()
+    if not persona:
+        return True
+    
+    level = persona.get("experience_level", "intermediate")
+    
+    # Beginners see samples for all fields
+    if level == "beginner":
+        return True
+    
+    # Intermediates see samples for complex fields only
+    if level == "intermediate":
+        complex_fields = ["kpi_notes", "data_dict_notes", "custom_prompt"]
+        return field_type in complex_fields
+    
+    # Experts don't see sample inputs
+    return False
